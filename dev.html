@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#020806" />
+    <meta name="description" content="Ausschnitt – ein abstraktes Spiel über Wahrnehmung und Zusammenhang." />
+    <meta name="ausschnitt-asset-base" content="assets/" />
+    <title>Ausschnitt · Spiel</title>
+  </head>
+  <body>
+    <main id="app">
+      <section id="game-shell" aria-labelledby="experience-title">
+        <h1 id="experience-title" class="visually-hidden">Ausschnitt – Browser-Spiel</h1>
+        <div
+          id="game-root"
+          role="img"
+          aria-describedby="canvas-alternative controls-description"
+          aria-label="Abstrakte, interaktive Spielszene"
+        ></div>
+
+        <video id="cinema" class="cinema" playsinline muted preload="metadata" aria-hidden="true"></video>
+        <div class="film-grain" aria-hidden="true"></div>
+        <div class="vignette" aria-hidden="true"></div>
+
+        <header class="stage-header" aria-live="polite">
+          <p id="scene-label" class="eyebrow"></p>
+          <p id="instruction" class="instruction"></p>
+        </header>
+
+        <div class="stage-footer">
+          <p id="interaction-hint" class="interaction-hint"></p>
+          <button id="primary-action" class="primary-action" type="button" hidden></button>
+        </div>
+
+        <p id="subtitles" class="subtitles" aria-live="polite"></p>
+        <p id="canvas-alternative" class="visually-hidden">
+          Eine dunkle abstrakte Welt reagiert auf Bewegungen in mehrere Richtungen. Helligkeit,
+          Form, Muster, Bewegung und Klang geben gemeinsam Orientierung. Das Spiel kann nicht
+          verloren werden; Hilfen und Zeitgrenzen führen jeden Abschnitt sicher weiter.
+        </p>
+
+        <button
+          id="teacher-handle"
+          class="teacher-handle"
+          type="button"
+          aria-label="Lehrersteuerung öffnen"
+          title="Lehrersteuerung (Strg + Umschalt + L)"
+          data-rolle="lehrer"
+        >
+          <span aria-hidden="true">•••</span>
+        </button>
+
+        <aside id="debug-overlay" class="debug-overlay" hidden aria-label="Debugdaten"></aside>
+      </section>
+
+      <p id="controls-description" class="visually-hidden">
+        Mit W, A, S und D oder den Pfeiltasten steuern. Die Leertaste löst in einzelnen Szenen eine
+        Resonanz aus. Maus und Berührung werden ebenfalls unterstützt. Das Spiel kann nicht verloren werden.
+      </p>
+    </main>
+
+    <dialog id="teacher-dialog" class="teacher-dialog" data-rolle="lehrer" aria-labelledby="teacher-title">
+      <form method="dialog" class="teacher-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">LOKALER ENTWURF</p>
+            <h2 id="teacher-title">Lehrersteuerung</h2>
+          </div>
+          <button class="icon-button" value="close" aria-label="Lehrersteuerung schließen">×</button>
+        </div>
+
+        <div class="teacher-status" aria-live="polite">
+          <p><span>Abschnitt</span><output id="teacher-state">–</output></p>
+          <p><span>Restzeit</span><output id="teacher-time">–</output></p>
+          <p><span>Hilfestufe</span><output id="teacher-hint">0</output></p>
+        </div>
+
+        <div class="control-grid">
+          <button id="teacher-pause" type="button">Pause</button>
+          <button id="teacher-hint-button" type="button">Hilfe verstärken</button>
+          <button id="teacher-complete" type="button">Abschnitt abschließen</button>
+          <button id="teacher-restart" type="button">Neu starten</button>
+          <button id="teacher-reset" type="button">Neuer Durchlauf</button>
+        </div>
+
+        <fieldset>
+          <legend>Level direkt starten</legend>
+          <div class="control-grid compact">
+            <button type="button" data-start-state="Title">Titel</button>
+            <button type="button" data-start-state="Intro">Einführung</button>
+            <button type="button" data-start-state="Level01">Level 1</button>
+            <button type="button" data-start-state="Level02">Level 2</button>
+            <button type="button" data-start-state="Level03">Level 3</button>
+            <button type="button" data-start-state="Level04">Level 4</button>
+            <button type="button" data-start-state="Level05">Level 5</button>
+            <button type="button" data-start-state="Level06">Level 6</button>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Echos und Finale direkt starten</legend>
+          <div class="control-grid compact">
+            <button type="button" data-start-state="Echo01">Echo 1</button>
+            <button type="button" data-start-state="Echo02">Echo 2</button>
+            <button type="button" data-start-state="Echo03">Echo 3</button>
+            <button type="button" data-start-state="Echo04">Echo 4</button>
+            <button type="button" data-start-state="Echo05">Echo 5</button>
+            <button type="button" data-start-state="FinaleReplay">Gesamt-Replay</button>
+            <button type="button" data-start-state="End">Endbild</button>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Präsentation</legend>
+          <label class="range-row">
+            <span>Musik</span>
+            <input id="music-volume" type="range" min="0" max="1" step="0.05" value="0.38" />
+          </label>
+          <label class="range-row">
+            <span>Effekte</span>
+            <input id="effects-volume" type="range" min="0" max="1" step="0.05" value="0.65" />
+          </label>
+          <label class="check-row"><input id="captions-toggle" type="checkbox" checked /> Untertitel</label>
+          <label class="check-row"><input id="test-mode-toggle" type="checkbox" /> Testmodus (verkürzte Zeiten)</label>
+          <button id="fullscreen-button" type="button">Vollbild</button>
+        </fieldset>
+
+        <p class="privacy-note">
+          Keine Namen, keine Übertragung: Telemetrie bleibt lokal auf diesem Gerät. Diese Oberfläche
+          ist Komfort, kein Zugriffsschutz.
+        </p>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

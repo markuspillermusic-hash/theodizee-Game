@@ -1,0 +1,19 @@
+{
+  "name": "ausschnitt",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --open /dev.html",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && vite build && node scripts/make-offline.mjs",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2",
+    "vite": "^8.2.0"
+  },
+  "dependencies": {
+    "phaser": "3.90.0"
+  }
+}
