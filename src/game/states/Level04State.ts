@@ -286,6 +286,14 @@ export class Level04State extends TimedLevelScene {
     }
   }
 
+  /**
+   * Kein Abblenden nach Schwarz: Der Uebergang setzt genau auf diesem Bild auf. Ein Fade hier
+   * erzeugte den Ladebildschirm-Eindruck zwischen Level 4 und 5.
+   */
+  protected afterLevelFinished(): void {
+    this.time.delayedCall(80, () => this.scene.start(this.levelConfig.nextState))
+  }
+
   private sample(delta: number): void {
     this.sampleClock += delta
     if (this.sampleClock < 110) return
@@ -355,11 +363,7 @@ export class Level04State extends TimedLevelScene {
       g.fillStyle(0x2c1712, setback * 0.34)
       g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
     }
-    if (this.phase === 1) {
-      const local = Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (5_200 * this.services.getTimeScale()), 0, 1)
-      g.fillStyle(0x030303, Math.max(0, local - 0.55) * 1.4)
-      g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
-    }
+
   }
 
   private drawEmbers(g: Phaser.GameObjects.Graphics, assistance: AssistanceLevel): void {

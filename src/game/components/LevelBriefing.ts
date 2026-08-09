@@ -12,10 +12,14 @@ export class LevelBriefing {
   private active = true
   private dismissible = false
 
-  constructor(scene: Phaser.Scene, copy: LevelBriefingCopy, testMode: boolean) {
+  /**
+   * `soft` haelt den Bildschirm durchscheinend. Nach einem schnittlosen Uebergang darf das
+   * Briefing die vorige Szene nicht zudecken, sonst wirkt der Wechsel wie ein Ladebildschirm.
+   */
+  constructor(scene: Phaser.Scene, copy: LevelBriefingCopy, testMode: boolean, soft = false) {
     this.scene = scene
-    const shade = scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x020504, 0.94).setDepth(100)
-    const panel = scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, 960, 540, 0x090d0b, 0.98)
+    const shade = scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x020504, soft ? 0.5 : 0.94).setDepth(100)
+    const panel = scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, 960, 540, 0x090d0b, soft ? 0.9 : 0.98)
       .setStrokeStyle(2, 0xded8b9, 0.24).setDepth(101)
     const eyebrow = scene.add.text(GAME_WIDTH / 2, 315, 'DEIN ZIEL', {
       fontFamily: 'Arial, sans-serif', fontSize: '18px', color: '#9ca69e',

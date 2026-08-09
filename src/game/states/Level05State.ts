@@ -17,53 +17,54 @@ interface RelationSignal {
 }
 
 interface Call {
+  from: SignalId | 'player'
   startedAt: number
-  speed: number
+  travelMs: number
   strength: number
   resolved: boolean
-  outgoing: boolean
 }
 
 const EXCHANGE_TARGET = 8
 const FADING_TARGET = 4
 const UNANSWERED_TARGET = 3
-const CALL_SPEED = 0.62
-const BASE_TOLERANCE = 62
+const BASE_TOLERANCE_MS = 190
 
 /**
  * Verbinde · „Zuruf und Antwort".
  *
- * Der Ruf reist sichtbar durch den Raum. Beantwortet wird er in dem Moment, in dem er ankommt —
- * kein abstraktes Taktfenster, das man auswendig lernen muss, sondern ein Ereignis mit einem Ort.
- * Nähe verkürzt die Laufzeit und ist damit selbst eine Entscheidung.
+ * Der Ruf reist sichtbar durch den Raum und braucht dafür **immer gleich lang**, egal wo man
+ * steht. Damit ist der Antwortmoment überall lesbar; es gibt keine versteckte Regel, die einen
+ * zwingt, sich erst wieder zu entfernen.
  *
- * Am Ende bleibt die Mechanik vollständig erhalten und funktioniert einwandfrei. Nur es kommt
- * nichts mehr zurück.
+ * Auch die Wahl des Gegenübers läuft über die Mechanik: Am Anfang rufen drei, und wem man zuerst
+ * antwortet, mit dem geht es weiter. Niemand muss irgendwohin laufen, ohne zu wissen warum.
+ *
+ * Zum Schluss bleibt die Steuerung vollständig erhalten und funktioniert einwandfrei. Nur es kommt
+ * nichts mehr zurück — auch dann nicht, wenn man direkt danebensteht.
  */
 export class Level05State extends TimedLevelScene {
   private graphics!: Phaser.GameObjects.Graphics
-  private player = new Phaser.Math.Vector2(1_180, 640)
+  private player = new Phaser.Math.Vector2(960, 640)
   private velocity = new Phaser.Math.Vector2()
   private phase = 0
   private phaseStartedAt = 0
   private preferred: SignalId | null = null
-  private dwell: Record<SignalId, number> = { amber: 0, violet: 0, blue: 0 }
   private call: Call | null = null
   private nextCallAt = 0
+  private openingIndex = 0
   private exchanges = 0
+  private exchangeTarget = EXCHANGE_TARGET
   private streak = 0
   private bestStreak = 0
   private hits = 0
   private misses = 0
   private fadingDelivered = 0
   private unanswered = 0
-  private sharedMs = 0
   private closeMs = 0
   private stumbleMs = 0
   private flash = 0
   private sampleClock = 0
   private safetyNetApplied = false
-  private exchangeTarget = EXCHANGE_TARGET
   private objectiveHud!: ObjectiveHud
   private goal!: GoalTracker
 
@@ -72,37 +73,36 @@ export class Level05State extends TimedLevelScene {
   }
 
   create(): void {
-    this.player.set(1_180, 640)
+    this.player.set(960, 640)
     this.velocity.set(0, 0)
     this.phase = 0
     this.phaseStartedAt = 0
     this.preferred = null
-    this.dwell = { amber: 0, violet: 0, blue: 0 }
     this.call = null
-    this.nextCallAt = 0
+    this.nextCallAt = 900
+    this.openingIndex = 0
     this.exchanges = 0
+    this.exchangeTarget = EXCHANGE_TARGET
     this.streak = 0
     this.bestStreak = 0
     this.hits = 0
     this.misses = 0
     this.fadingDelivered = 0
     this.unanswered = 0
-    this.sharedMs = 0
     this.closeMs = 0
     this.stumbleMs = 0
     this.flash = 0
     this.sampleClock = 0
     this.safetyNetApplied = false
-    this.exchangeTarget = EXCHANGE_TARGET
     this.graphics = this.add.graphics()
     this.objectiveHud = new ObjectiveHud(this)
-    this.goal = new GoalTracker(this.objectiveHud, { label: 'Wählen', target: 1 })
+    this.goal = new GoalTracker(this.objectiveHud, { label: 'Antworten', target: 1 })
     this.cameras.main.setBackgroundColor(0x08070c)
-    this.beginTimedLevel('Level05', levels.level05, 'AUSSCHNITT · 05', 'Geh zu einem.', 'bond', {
-      goal: 'Wähle ein Gegenüber. Antworte dann jedes Mal, wenn der Ruf dich erreicht.',
-      controls: 'WASD / Pfeiltasten · Leertaste beim Eintreffen · Maus oder Berührung',
-    })
-    // Nahtloser Anschluss aus Level 4: aus dem hellen Durchgang heraus, nicht aus Schwarz.
+    this.beginTimedLevel('Level05', levels.level05, 'AUSSCHNITT · 05', 'Drei rufen. Antworte einem.', 'bond', {
+      goal: 'Ein Ruf läuft auf dich zu. Antworte genau in dem Moment, in dem er dich erreicht.',
+      controls: 'Leertaste oder tippen · WASD / Pfeiltasten zum Bewegen',
+    }, true)
+    // Nahtloser Anschluss aus Level 4: aus der hellen Schwelle heraus, nicht aus Schwarz.
     this.cameras.main.fadeIn(1_100, 232, 206, 158)
   }
 
@@ -123,13 +123,13 @@ export class Level05State extends TimedLevelScene {
 
   protected applyHint(level: AssistanceLevel): void {
     this.services.setAssistance(level)
-    if (level === 1) this.services.ui.setHint('Der Ruf wird deutlicher und der Antwortmoment breiter.')
-    if (level === 2) this.services.ui.setHint('Ein Ring zeigt, wo der Ruf gerade steht.')
-    if (level === 3) this.services.ui.setHint('Der Ruf läuft langsamer und der Antwortmoment ist weit.')
+    if (level === 1) this.services.ui.setHint('Der Antwortmoment wird großzügiger.')
+    if (level === 2) this.services.ui.setHint('Ein heller Punkt zeigt, wo der Ruf gerade ist.')
+    if (level === 3) this.services.ui.setHint('Die Rufe laufen langsamer und der Moment ist weit.')
   }
 
   protected collectResult(): LevelResult {
-    const preferred = this.preferred ?? this.selectPreferred()
+    const preferred = this.preferred ?? 'amber'
     return {
       choices: {
         preferredSignal: preferred,
@@ -145,42 +145,12 @@ export class Level05State extends TimedLevelScene {
         maximumRhythmCombo: this.bestStreak,
         exchanges: this.exchanges,
         unansweredCalls: this.unanswered,
-        sharedMs: this.sharedMs,
         closeRatio: this.elapsedMs ? this.closeMs / this.elapsedMs : 0,
-        preferredDwellMs: this.dwell[preferred],
       },
     }
   }
 
-  /**
-   * Notbremse: volle Hilfe — und das Soll sinkt auf das, was noch erreichbar ist. Ohne das kann ein
-   * schwacher Durchlauf in Phase 1 hängenbleiben und die ganze Unterrichtszeit aufbrauchen.
-   */
-  private applySafetyNet(): void {
-    if (this.phase !== 1) return
-    if (!this.safetyNetApplied && this.elapsedMs >= this.maximumDurationMs * 0.5) {
-      this.safetyNetApplied = true
-      while (this.hintManager.getLevel() < 3) this.hintManager.forceNext()
-      this.lowerTarget(this.exchanges + 2)
-      return
-    }
-    // Zweite Stufe: Wer auch mit voller Hilfe nicht weiterkommt, wird weitergeführt. Das Ende des
-    // Abschnitts ist der Teil, der im Unterricht zählt — den darf niemand verpassen.
-    if (this.safetyNetApplied && this.elapsedMs >= this.maximumDurationMs * 0.6) {
-      this.exchangeTarget = Math.max(1, this.exchanges)
-      this.enterPhase(2)
-    }
-  }
-
-  private lowerTarget(next: number): void {
-    const target = Math.max(1, Math.min(EXCHANGE_TARGET, next))
-    if (target === this.exchangeTarget) return
-    this.exchangeTarget = target
-    this.goal.relabel('Wechsel', this.exchangeTarget)
-    this.goal.setValue(this.exchanges)
-  }
-
-  /** Die Güte hängt hier an der Treffgenauigkeit, nicht an Zeit und Rückschlägen. */
+  /** Die Güte hängt an der Treffgenauigkeit, nicht an Zeit und Rückschlägen. */
   private answerGrade(): 'knapp' | 'solide' | 'stark' {
     const attempts = this.hits + this.misses
     if (attempts === 0) return 'knapp'
@@ -190,65 +160,89 @@ export class Level05State extends TimedLevelScene {
     return 'knapp'
   }
 
-  private tolerance(): number {
+  private toleranceMs(): number {
     const assistance = this.hintManager.getLevel()
-    return BASE_TOLERANCE + (assistance >= 1 ? 26 : 0) + (assistance >= 3 ? 26 : 0)
+    return (BASE_TOLERANCE_MS + (assistance >= 1 ? 80 : 0) + (assistance >= 3 ? 80 : 0)) * this.services.getTimeScale()
   }
 
-  private callSpeed(): number {
-    const slow = this.hintManager.getLevel() >= 3 ? 0.76 : 1
-    return CALL_SPEED * slow * (this.phase === 2 ? 0.72 : 1)
+  /** Feste Laufzeit: Der Antwortmoment ist unabhängig davon, wo man steht. */
+  private travelMs(): number {
+    const scale = this.services.getTimeScale()
+    const slow = this.hintManager.getLevel() >= 3 ? 1.3 : 1
+    if (this.phase === 0) return 1_400 * scale * slow
+    if (this.phase === 2) return (900 + ((this.fadingDelivered * 431) % 700)) * scale * slow
+    const eased = Phaser.Math.Linear(1_200, 780, Phaser.Math.Clamp(this.exchanges / this.exchangeTarget, 0, 1))
+    return eased * scale * slow
   }
 
-  private partner(): RelationSignal {
-    const id = this.preferred ?? this.selectPreferred()
-    return this.baseSignals().find((signal) => signal.id === id) ?? this.baseSignals()[0]
-  }
-
-  private baseSignals(): RelationSignal[] {
+  private signals(): RelationSignal[] {
     return [
-      { id: 'amber', color: 0xe8b969, x: 470, y: 430, shape: 'circle' },
-      { id: 'violet', color: 0xb59ad8, x: 960, y: 300, shape: 'diamond' },
-      { id: 'blue', color: 0x79bfca, x: 1_450, y: 470, shape: 'ring' },
+      { id: 'amber', color: 0xe8b969, x: 380, y: 380, shape: 'circle' },
+      { id: 'violet', color: 0xb59ad8, x: 1_000, y: 250, shape: 'diamond' },
+      { id: 'blue', color: 0x79bfca, x: 1_560, y: 430, shape: 'ring' },
     ]
   }
 
-  private selectPreferred(): SignalId {
-    return (Object.entries(this.dwell) as Array<[SignalId, number]>).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'amber'
+  private partner(): RelationSignal {
+    const id = this.preferred ?? 'amber'
+    return this.signals().find((signal) => signal.id === id) ?? this.signals()[0]
   }
 
-  private distanceToPartner(): number {
-    const partner = this.partner()
-    return Phaser.Math.Distance.Between(this.player.x, this.player.y, partner.x, partner.y)
+  private origin(call: Call): Phaser.Math.Vector2 {
+    if (call.from === 'player') return this.player
+    const signal = this.signals().find((entry) => entry.id === call.from) ?? this.signals()[0]
+    return new Phaser.Math.Vector2(signal.x, signal.y)
+  }
+
+  private applySafetyNet(): void {
+    if (this.phase !== 1) return
+    if (!this.safetyNetApplied && this.elapsedMs >= this.maximumDurationMs * 0.5) {
+      this.safetyNetApplied = true
+      while (this.hintManager.getLevel() < 3) this.hintManager.forceNext()
+      this.exchangeTarget = Math.max(1, Math.min(EXCHANGE_TARGET, this.exchanges + 2))
+      this.goal.relabel('Wechsel', this.exchangeTarget)
+      this.goal.setValue(this.exchanges)
+      return
+    }
+    // Zweite Stufe: Das Ende des Abschnitts ist der Teil, der im Unterricht zählt.
+    if (this.safetyNetApplied && this.elapsedMs >= this.maximumDurationMs * 0.62) this.enterPhase(2)
   }
 
   private updatePhase(): void {
     const scale = this.services.getTimeScale()
-    if (this.phase === 0 && this.goal.reached) return this.enterPhase(1)
+    if (this.phase === 0 && this.preferred) return this.enterPhase(1)
+    // Wer nicht antwortet, bekommt nach einer Weile ein Gegenueber zugewiesen. Ohne das bleibt
+    // ein zoegernder Durchlauf in der Wahlphase stehen und sieht vom Abschnitt gar nichts.
+    if (this.phase === 0 && this.elapsedMs >= 17_000 * scale) {
+      this.preferred = this.call && this.call.from !== 'player' ? this.call.from : 'amber'
+      this.services.ui.setHint('Einer bleibt bei dir.')
+      return this.enterPhase(1)
+    }
     if (this.phase === 1 && this.exchanges >= this.exchangeTarget) return this.enterPhase(2)
     if (this.phase === 2 && this.fadingDelivered >= FADING_TARGET && !this.call) return this.enterPhase(3)
-    if (this.phase === 3 && (this.unanswered >= UNANSWERED_TARGET || this.elapsedMs - this.phaseStartedAt >= 16_000 * scale)) {
+    if (this.phase === 3 && (this.unanswered >= UNANSWERED_TARGET || this.elapsedMs - this.phaseStartedAt >= 15_000 * scale)) {
       this.goal.setValue(this.goal.target)
       this.finishLevel()
     }
   }
 
   private enterPhase(next: number): void {
+    if (this.phase === next) return
     this.phase = next
     this.phaseStartedAt = this.elapsedMs
     this.call = null
+    const scale = this.services.getTimeScale()
     if (next === 1) {
-      this.preferred = this.selectPreferred()
       this.goal.relabel('Wechsel', this.exchangeTarget)
       this.goal.setValue(0)
       this.goal.resetBuffer(0.8)
-      this.nextCallAt = this.elapsedMs + 700 * this.services.getTimeScale()
+      this.nextCallAt = this.elapsedMs + 900 * scale
       this.services.ui.setInstruction('Antworte, wenn der Ruf dich erreicht.')
       this.services.audio.playMotif('bond')
     } else if (next === 2) {
       this.goal.relabel('Schwächer', FADING_TARGET)
       this.goal.setValue(0)
-      this.nextCallAt = this.elapsedMs + 1_600 * this.services.getTimeScale()
+      this.nextCallAt = this.elapsedMs + 1_800 * scale
       this.services.ui.setInstruction('Antworte weiter.')
       this.services.audio.playMotif('care', 0.14)
     } else if (next === 3) {
@@ -256,6 +250,7 @@ export class Level05State extends TimedLevelScene {
       this.goal.setValue(0)
       this.goal.resetBuffer(0)
       this.services.ui.setInstruction('Du kannst rufen.')
+      this.services.ui.setHint('Leertaste')
       this.services.audio.playMotif('release', 0.18)
     }
   }
@@ -271,61 +266,59 @@ export class Level05State extends TimedLevelScene {
     }
     this.velocity.scale(Math.pow(this.stumbleMs > 0 ? 0.82 : 0.9, frameScale)).limit(9.2)
     this.player.x = Phaser.Math.Clamp(this.player.x + this.velocity.x * frameScale, 130, 1_790)
-    this.player.y = Phaser.Math.Clamp(this.player.y + this.velocity.y * frameScale, 170, 900)
+    this.player.y = Phaser.Math.Clamp(this.player.y + this.velocity.y * frameScale, 200, 940)
   }
 
   private updateMechanics(delta: number): void {
     const scale = this.services.getTimeScale()
     const pressed = this.inputManager.justActionDown() && this.stumbleMs <= 0
 
-    if (this.phase === 0) {
-      const nearest = this.baseSignals()
-        .map((signal) => ({ signal, d: Phaser.Math.Distance.Between(this.player.x, this.player.y, signal.x, signal.y) }))
-        .sort((a, b) => a.d - b.d)[0]
-      if (nearest && nearest.d < 170) this.dwell[nearest.signal.id] += delta
-      const target = Math.max(250, 2_400 * scale)
-      const best = Math.max(...Object.values(this.dwell))
-      this.goal.resetBuffer(Phaser.Math.Clamp(best / target, 0, 1))
-      if (best >= target) this.goal.setValue(1)
-      return
-    }
-
-    const distance = this.distanceToPartner()
-    if (distance < 260) {
+    if (this.phase !== 0 && Phaser.Math.Distance.BetweenPoints(this.player, this.partner()) < 260) {
       this.closeMs += delta
-      this.sharedMs += delta
     }
 
     if (this.phase === 3) {
       if (pressed) {
         this.unanswered += 1
-        this.call = { startedAt: this.elapsedMs, speed: this.callSpeed(), strength: 0.5, resolved: false, outgoing: true }
+        this.call = { from: 'player', startedAt: this.elapsedMs, travelMs: 1_100 * scale, strength: 0.5, resolved: false }
         this.goal.setValue(this.unanswered)
         this.services.audio.pulse(196, 0.03)
       }
-      if (this.call && (this.elapsedMs - this.call.startedAt) * this.call.speed > distance + 260) this.call = null
+      if (this.call && this.elapsedMs - this.call.startedAt > this.call.travelMs * 1.6) this.call = null
       return
     }
 
-    // Neuer Ruf
-    if (!this.call && this.elapsedMs >= this.nextCallAt) {
-      const strength = this.phase === 2 ? 1 - this.fadingDelivered * 0.22 : 1
-      this.call = { startedAt: this.elapsedMs, speed: this.callSpeed(), strength, resolved: false, outgoing: false }
-      this.services.audio.pulse(150 + this.exchanges * 6, 0.028 * strength)
-    }
+    if (!this.call && this.elapsedMs >= this.nextCallAt) this.startIncomingCall()
     if (!this.call) return
 
-    const radius = (this.elapsedMs - this.call.startedAt) * this.call.speed
-    const offset = radius - distance
+    const age = this.elapsedMs - this.call.startedAt
+    const offset = age - this.call.travelMs
 
-    if (pressed && !this.call.resolved && !this.call.outgoing) {
-      if (Math.abs(offset) <= this.tolerance()) this.registerHit()
+    if (pressed && !this.call.resolved) {
+      if (Math.abs(offset) <= this.toleranceMs()) this.registerHit()
       else this.registerMiss()
       return
     }
+    if (!this.call.resolved && offset > this.toleranceMs() + 220 * scale) this.registerMiss()
+  }
 
-    // Der Ruf ist vorbeigelaufen, ohne beantwortet zu werden.
-    if (!this.call.resolved && offset > this.tolerance() + 40) this.registerMiss()
+  /** Zu Beginn rufen die drei reihum. Wem man zuerst antwortet, mit dem geht es weiter. */
+  private startIncomingCall(): void {
+    const scale = this.services.getTimeScale()
+    if (this.phase === 0) {
+      const order: SignalId[] = ['amber', 'violet', 'blue']
+      const from = order[this.openingIndex % order.length]
+      this.openingIndex += 1
+      this.call = { from, startedAt: this.elapsedMs, travelMs: this.travelMs(), strength: 1, resolved: false }
+      this.services.audio.pulse(150 + this.openingIndex * 14, 0.03)
+      return
+    }
+    const strength = this.phase === 2 ? Math.max(0.2, 1 - this.fadingDelivered * 0.22) : 1
+    this.call = {
+      from: this.partner().id, startedAt: this.elapsedMs, travelMs: this.travelMs(), strength, resolved: false,
+    }
+    this.services.audio.pulse(150 + this.exchanges * 6, 0.028 * strength)
+    void scale
   }
 
   private registerHit(): void {
@@ -335,18 +328,26 @@ export class Level05State extends TimedLevelScene {
     this.streak += 1
     this.bestStreak = Math.max(this.bestStreak, this.streak)
     this.flash = 1
-    this.services.audio.pulse(232 + (this.streak % 4) * 26, 0.05)
     const scale = this.services.getTimeScale()
+
+    if (this.phase === 0) {
+      // Die Wahl geschieht durch die Antwort selbst — kein Hinlaufen, keine zusätzliche Regel.
+      this.preferred = this.call.from === 'player' ? 'amber' : this.call.from
+      this.services.audio.pulse(250, 0.06)
+      this.call = null
+      return
+    }
+
+    this.services.audio.pulse(232 + (this.streak % 4) * 26, 0.05)
     if (this.phase === 1) {
       this.exchanges += 1
       this.goal.setValue(this.exchanges)
       this.goal.fillBuffer(0.13)
-      // Die Pause richtet sich nach der Laufzeit: Wer nah steht, bekommt einen dichteren Wechsel.
-      this.nextCallAt = this.elapsedMs + (this.distanceToPartner() / this.callSpeed()) + 620 * scale
+      this.nextCallAt = this.elapsedMs + 820 * scale
     } else {
       this.fadingDelivered += 1
       this.goal.setValue(this.fadingDelivered)
-      this.nextCallAt = this.elapsedMs + 2_400 * scale
+      this.nextCallAt = this.elapsedMs + 2_300 * scale
     }
     this.call = null
   }
@@ -359,16 +360,21 @@ export class Level05State extends TimedLevelScene {
     this.flash = -0.7
     this.services.audio.pulse(92, 0.026)
     const scale = this.services.getTimeScale()
+    if (this.phase === 0) {
+      this.call = null
+      this.nextCallAt = this.elapsedMs + 700 * scale
+      return
+    }
     if (this.phase === 1) {
-      if (this.goal.drainBuffer(0.26)) {
-        this.stumbleMs = 900 * scale
-        this.cameras.main.shake(220, 0.004)
+      if (this.goal.drainBuffer(0.24)) {
+        this.stumbleMs = 800 * scale
+        this.cameras.main.shake(200, 0.0035)
       }
-      this.nextCallAt = this.elapsedMs + 1_100 * scale
+      this.nextCallAt = this.elapsedMs + 1_000 * scale
     } else {
       this.fadingDelivered += 1
       this.goal.setValue(this.fadingDelivered)
-      this.nextCallAt = this.elapsedMs + 2_400 * scale
+      this.nextCallAt = this.elapsedMs + 2_300 * scale
     }
     this.call = null
   }
@@ -376,7 +382,7 @@ export class Level05State extends TimedLevelScene {
   private sample(delta: number): void {
     this.sampleClock += delta
     if (this.sampleClock < 110) return
-    const distance = this.phase === 0 ? 999 : this.distanceToPartner()
+    const distance = this.phase === 0 ? 999 : Phaser.Math.Distance.BetweenPoints(this.player, this.partner())
     this.services.telemetry.sample((this.player.x - 960) / 820, this.velocity.length() / 10, distance < 260, this.sampleClock)
     this.sampleClock = 0
   }
@@ -384,73 +390,79 @@ export class Level05State extends TimedLevelScene {
   private drawWorld(time: number): void {
     const g = this.graphics
     g.clear()
-    const warmth = this.phase === 1 ? Phaser.Math.Clamp(this.exchanges / this.exchangeTarget, 0, 1) : this.phase >= 2 ? 0.3 : 0
+    const warmth = this.phase === 1 ? Phaser.Math.Clamp(this.exchanges / this.exchangeTarget, 0, 1) : this.phase >= 2 ? 0.25 : 0
     g.fillGradientStyle(0x08070c, 0x090811, Phaser.Display.Color.GetColor(
       Math.round(18 + warmth * 14), Math.round(12 + warmth * 24), Math.round(20 + warmth * 18),
     ), 0x08070b, 1)
     g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
 
-    const partnerId = this.preferred ?? this.selectPreferred()
-    const fade = this.phase === 2
-      ? Phaser.Math.Clamp(1 - this.fadingDelivered / (FADING_TARGET + 1), 0.18, 1)
-      : this.phase === 3 ? 0.12 : 1
-
-    this.baseSignals().forEach((signal, index) => {
-      const isPartner = signal.id === partnerId
-      if (this.phase > 0 && !isPartner) return
-      const strength = this.phase === 0 ? 1 : fade
-      this.drawSignal(g, signal, time, index, strength)
+    const partnerId = this.preferred
+    this.signals().forEach((signal, index) => {
+      if (this.phase > 0 && signal.id !== partnerId) return
+      const strength = this.phase === 2
+        ? Math.max(0.18, 1 - this.fadingDelivered / (FADING_TARGET + 1))
+        : this.phase === 3 ? 0.12 : 1
+      this.drawSignal(g, signal, time, index, this.phase === 0 ? 1 : strength)
     })
 
-    if (this.phase > 0) this.drawCall(g)
+    this.drawCall(g)
 
-    if (this.phase === 0) {
-      const target = Math.max(250, 2_400 * this.services.getTimeScale())
-      const best = Math.max(...Object.values(this.dwell))
-      if (best > 0) {
-        g.lineStyle(4, 0xf4e4b8, 0.3)
-        g.strokeCircle(this.player.x, this.player.y, 40 + (best / target) * 26)
-      }
+    // Empfangsring: der Ort, an dem der Ruf ankommt. Er macht den Moment sichtbar.
+    const receiving = this.phase !== 3 && this.call !== null && !this.call.resolved
+    if (receiving) {
+      const offset = Math.abs((this.elapsedMs - this.call!.startedAt) - this.call!.travelMs)
+      const near = Phaser.Math.Clamp(1 - offset / (this.toleranceMs() * 2.2), 0, 1)
+      g.lineStyle(3 + near * 4, 0xf6e6bc, 0.2 + near * 0.7)
+      g.strokeCircle(this.player.x, this.player.y, 36)
     }
 
     const stumble = this.stumbleMs > 0
     g.fillStyle(0xf4eee3, stumble ? 0.5 : 0.96)
     g.fillCircle(this.player.x, this.player.y, 11)
-    g.lineStyle(3, 0xf1dcc0, 0.6)
+    g.lineStyle(2, 0xf1dcc0, 0.4)
     g.strokeCircle(this.player.x, this.player.y, 23 + Math.sin(time * 0.003) * 3)
     if (this.flash > 0) {
       g.lineStyle(5, 0xf6e6bc, this.flash * 0.6)
-      g.strokeCircle(this.player.x, this.player.y, 34 + (1 - this.flash) * 40)
+      g.strokeCircle(this.player.x, this.player.y, 36 + (1 - this.flash) * 42)
     } else if (this.flash < 0) {
       g.lineStyle(3, 0xb2705a, -this.flash * 0.55)
-      g.strokeCircle(this.player.x, this.player.y, 40)
+      g.strokeCircle(this.player.x, this.player.y, 44)
     }
 
     if (this.phase === 3) {
-      const local = Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (16_000 * this.services.getTimeScale()), 0, 1)
+      const local = Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (15_000 * this.services.getTimeScale()), 0, 1)
       g.fillStyle(0x040307, local * 0.55)
       g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
     }
   }
 
-  /** Der Ruf ist ein Kreisbogen um das Gegenüber. Wo er den Spieler schneidet, ist der Moment. */
+  /**
+   * Der Ruf ist ein Bogen, der vom Rufenden zum Empfänger wächst. Er erreicht den Spieler exakt
+   * nach der Laufzeit — auch wenn der sich bewegt.
+   */
   private drawCall(g: Phaser.GameObjects.Graphics): void {
     if (!this.call) return
-    const partner = this.partner()
-    const radius = (this.elapsedMs - this.call.startedAt) * this.call.speed
-    if (radius <= 4) return
-    const origin = this.call.outgoing ? this.player : new Phaser.Math.Vector2(partner.x, partner.y)
-    const alpha = (this.call.outgoing ? 0.34 : 0.68) * this.call.strength
-    g.lineStyle(this.call.outgoing ? 2.4 : 4.2, this.call.outgoing ? 0xf1dcc0 : partner.color, alpha)
+    const origin = this.origin(this.call)
+    const target = this.call.from === 'player'
+      ? new Phaser.Math.Vector2(this.partner().x, this.partner().y)
+      : this.player
+    const distance = Phaser.Math.Distance.BetweenPoints(origin, target)
+    const local = Phaser.Math.Clamp((this.elapsedMs - this.call.startedAt) / this.call.travelMs, 0, 1.6)
+    const radius = distance * local
+    if (radius <= 3) return
+    const color = this.call.from === 'player'
+      ? 0xf1dcc0
+      : (this.signals().find((signal) => signal.id === this.call!.from) ?? this.signals()[0]).color
+    const alpha = (this.call.from === 'player' ? 0.32 : 0.7) * this.call.strength
+    g.lineStyle(this.call.from === 'player' ? 2.4 : 4.2, color, alpha * (local > 1 ? 0.35 : 1))
     g.strokeCircle(origin.x, origin.y, radius)
-    g.lineStyle(1.6, this.call.outgoing ? 0xf1dcc0 : partner.color, alpha * 0.4)
-    g.strokeCircle(origin.x, origin.y, Math.max(0, radius - 26))
+    g.lineStyle(1.6, color, alpha * 0.35)
+    g.strokeCircle(origin.x, origin.y, Math.max(0, radius - 24))
 
-    if (this.call.outgoing || this.hintManager.getLevel() < 2) return
-    // Hilfestufe 2: der Punkt, an dem der Ruf den Spieler treffen wird
-    const angle = Phaser.Math.Angle.Between(origin.x, origin.y, this.player.x, this.player.y)
-    g.fillStyle(partner.color, 0.75)
-    g.fillCircle(origin.x + Math.cos(angle) * radius, origin.y + Math.sin(angle) * radius, 8)
+    if (this.hintManager.getLevel() < 2 || this.call.from === 'player') return
+    const angle = Phaser.Math.Angle.BetweenPoints(origin, target)
+    g.fillStyle(color, 0.85)
+    g.fillCircle(origin.x + Math.cos(angle) * radius, origin.y + Math.sin(angle) * radius, 9)
   }
 
   private drawSignal(

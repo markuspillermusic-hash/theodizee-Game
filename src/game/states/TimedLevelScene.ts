@@ -25,6 +25,7 @@ export abstract class TimedLevelScene extends BaseScene {
     instruction: string,
     ambient: AmbientKey,
     briefingCopy?: LevelBriefingCopy,
+    softBriefing = false,
   ): void {
     this.elapsedMs = 0
     this.finished = false
@@ -45,7 +46,7 @@ export abstract class TimedLevelScene extends BaseScene {
     this.cameras.main.fadeIn(720, 2, 8, 6)
     this.inputManager = new SpatialInputManager(this)
     if (briefingCopy) {
-      this.briefing = new LevelBriefing(this, briefingCopy, this.services.getStatus().testMode)
+      this.briefing = new LevelBriefing(this, briefingCopy, this.services.getStatus().testMode, softBriefing)
       this.briefingWasActive = true
     }
     this.hintManager = new HintManager(hints, (level) => this.applyHint(level))
