@@ -78,14 +78,15 @@ Steuerung dargestellt.
 | 1 · Bleibe | Wachstum im Licht; Sonnenbogen mit Untergang und Wiederaufgang | Richtung, Lichtzeit, erreichte Länge |
 | 2 · Folge | kompakte gestreifte Signalkörper, Nahrungssuche, Konkurrenz und frühe unvermeidliche Jagd | Funde, Konkurrenzverluste, Energie, Fluchtbewegung |
 | 3 · Versorge | zwei Empfänger, eine Tragkraft, driftende Gefahrenfelder · Soll 8 | Versorgungen, Fracht, Rückschläge, Weg, Güte |
-| 4 · Bewahre | Klarheit als ausgebbare Ressource, Etappen zählen nur bei klarer Sicht · Soll 7 | Etappen, Klarheit, Auftankzeit, Korridor, Güte |
-| 5 · Verbinde | durchgehende Rhythmusantwort mit anziehendem Takt · Soll Serie 8, dann 3 Versuche | Treffer, längste Serie, Signal, Entscheidung, Güte |
+| 4 · Bewahre | „Dazwischen": einen Schutzbefohlenen mit dem eigenen Körper decken · Soll 14 | Abgefangen, Durchgekommenes, sein Zustand, deine Kraft |
+| 5 · Verbinde | „Zuruf und Antwort": sichtbar reisender Ruf, Antwort beim Eintreffen · Soll 8 Wechsel | Treffer, Genauigkeit, Signal, Nähe, unbeantwortete Rufe |
 | 6 · Lass los | Muster halten statt antippen; danach messbarer Steuerungsabbau | Erinnerungen, Aktivität, Abbau, Loslassen |
+| Übergang 4 → 5 | Schnittloser Wechsel: die Kamera folgt dem, der durchkommt | — |
 | Finale | fünfteilige Zusammenschau | Richtung, Spur, Weg und Beziehungsmotiv |
 
 Level 3 bis 6 enden, sobald ihr Soll erreicht ist; die Zeitgrenze ist nur noch Notbremse und löst
-kurz davor automatisch die höchste Hilfestufe aus. Gemessene Werte bei perfektem Spiel: 42 s, 34 bis
-44 s, 29 s und rund 24 s. Mit Echos, Übergängen und Spielerwechseln ergibt das ungefähr 30 bis
+kurz davor automatisch die höchste Hilfestufe aus. Gemessene Werte bei perfektem Spiel: 42 s, 51 s (Level 4),
+32 s (Level 5) und rund 24 s. Mit Echos, Übergängen und Spielerwechseln ergibt das ungefähr 30 bis
 35 Minuten. Der Testmodus verkürzt den kompletten automatischen Durchlauf auf rund 1,5 Minuten.
 
 ## Lehrersteuerung

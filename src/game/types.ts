@@ -31,6 +31,7 @@ export type GameStateKey =
   | 'Level03'
   | 'Echo03'
   | 'Level04'
+  | 'Transition45'
   | 'Echo04'
   | 'Level05'
   | 'Echo05'

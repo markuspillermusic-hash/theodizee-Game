@@ -17,6 +17,7 @@ import { Level05State } from './states/Level05State'
 import { Level06State } from './states/Level06State'
 import { PreloadState } from './states/PreloadState'
 import { TitleState } from './states/TitleState'
+import { Transition45State } from './states/Transition45State'
 import { DebugOverlay } from './systems/DebugOverlay'
 import { GameServices, setActiveGameServices } from './systems/GameServices'
 import { TeacherControls, type TeacherControlApi } from './systems/TeacherControls'
@@ -60,7 +61,8 @@ export class GameApp implements TeacherControlApi {
       scene: [
         BootState, PreloadState, TitleState, IntroState,
         Level01State, Echo01State, Level02State, Echo02State, Level03State, Echo03State,
-        Level04State, Echo04State, Level05State, Echo05State, Level06State, FinaleReplayState, EndState,
+        Level04State, Transition45State, Echo04State, Level05State, Echo05State, Level06State,
+        FinaleReplayState, EndState,
       ],
     }
 
