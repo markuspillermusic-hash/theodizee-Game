@@ -1,5 +1,10 @@
 import type { LevelConfig } from '../types'
 
+/**
+ * `expectedDurationMs` ist ab Version 2 kein Zielwert mehr, sondern der Vergleichsmaßstab für die
+ * Güte: Level 3 bis 6 enden, sobald ihr Soll erreicht ist. `maximumDurationMs` ist nur noch die
+ * Notbremse; kurz davor schaltet die Szene selbst auf Hilfestufe 3, statt hart abzuschneiden.
+ */
 export const levels: Record<string, LevelConfig> = {
   level01: {
     id: 'level-01', title: 'Bleibe', expectedDurationMs: 78_000, storyDurationMs: 90_000,
@@ -10,19 +15,19 @@ export const levels: Record<string, LevelConfig> = {
     maximumDurationMs: 82_000, hintTimesMs: [18_000, 38_000, 58_000], echoId: 'echo-02', nextState: 'Echo02',
   },
   level03: {
-    id: 'level-03', title: 'Versorge', expectedDurationMs: 105_000, storyDurationMs: 125_000,
-    maximumDurationMs: 145_000, hintTimesMs: [35_000, 72_000, 105_000], echoId: 'echo-03', nextState: 'Echo03',
+    id: 'level-03', title: 'Versorge', expectedDurationMs: 66_000, storyDurationMs: 100_000,
+    maximumDurationMs: 128_000, hintTimesMs: [30_000, 60_000, 92_000], echoId: 'echo-03', nextState: 'Echo03',
   },
   level04: {
-    id: 'level-04', title: 'Bewahre', expectedDurationMs: 100_000, storyDurationMs: 120_000,
-    maximumDurationMs: 140_000, hintTimesMs: [32_000, 68_000, 102_000], echoId: 'echo-04', nextState: 'Echo04',
+    id: 'level-04', title: 'Bewahre', expectedDurationMs: 62_000, storyDurationMs: 90_000,
+    maximumDurationMs: 114_000, hintTimesMs: [26_000, 54_000, 84_000], echoId: 'echo-04', nextState: 'Echo04',
   },
   level05: {
-    id: 'level-05', title: 'Verbinde', expectedDurationMs: 135_000, storyDurationMs: 155_000,
-    maximumDurationMs: 175_000, hintTimesMs: [42_000, 88_000, 132_000], echoId: 'echo-05', nextState: 'Echo05',
+    id: 'level-05', title: 'Verbinde', expectedDurationMs: 52_000, storyDurationMs: 82_000,
+    maximumDurationMs: 106_000, hintTimesMs: [22_000, 48_000, 78_000], echoId: 'echo-05', nextState: 'Echo05',
   },
   level06: {
-    id: 'level-06', title: 'Lass los', expectedDurationMs: 62_000, storyDurationMs: 75_000,
-    maximumDurationMs: 90_000, hintTimesMs: [20_000, 42_000, 62_000], nextState: 'FinaleReplay',
+    id: 'level-06', title: 'Lass los', expectedDurationMs: 46_000, storyDurationMs: 72_000,
+    maximumDurationMs: 94_000, hintTimesMs: [20_000, 44_000, 68_000], nextState: 'FinaleReplay',
   },
 }

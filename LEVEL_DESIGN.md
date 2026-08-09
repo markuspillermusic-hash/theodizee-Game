@@ -31,47 +31,62 @@ Einordnung gehört in das Unterrichtsgespräch nach dem Spiel.
   Richtungswechsel und geringster Jagdabstand.
 - **Echo:** enge oder weite Herdenvariante; Filmdateien optional, prozeduraler Fallback vorhanden.
 
-## Level 3 · Versorge — implementiert
+## Gerüst ab Version 2 — Soll, Puffer, Rückschlag, Güte
 
-- **Mechanik:** zuerst vier aktiv auffangbare Versorgungspulse; anschließend Zeitsprung, warme oder
-  kühle Spur mit mehreren Etappen, Ressource, riskante Rückkehr und wiederholbare Versorgung. Eine
-  Gefahrenzone schwächt die getragene Ressource, stoppt den Ablauf aber nicht.
-- **Dramaturgie:** Das Ende von Level 2 wird zur Voraussetzung von Fürsorge. Harte Grenzen und ein
-  fremdes verletzliches Signal führen zum unvermeidlichen Perspektivabbruch.
-- **Hilfen:** stärkere Bedürfnisse und Spuren; Zielströmung; getragene Rückkehr.
-- **Telemetrie:** empfangene Pulse, Spur-Etappen, Suchzeit, Risiko, Frachtstärke, Nähe und Rückkehrzahl.
-- **Echo:** Spur und Rückkehr werden übernommen; Tod bleibt außerhalb des Bildes.
+Level 3 bis 6 laufen seit der Überarbeitung vom 2026-08-09 nicht mehr auf die Uhr, sondern auf ein
+Ziel. `GoalTracker` bündelt vier Dinge:
 
-## Level 4 · Bewahre — implementiert
+- **Soll** — eine zählbare Zahl im HUD, vor dem Start genannt.
+- **Puffer** — eine zweite Ressource, die durch Fehler sinkt.
+- **Rückschlag** — leerer Puffer nimmt Fortschritt zurück, füllt sich wieder und beendet nie das
+  Level. Die Regel „keine Niederlage" gilt jetzt für das Ende, nicht mehr für den Weg dorthin.
+- **Güte** — *knapp / solide / stark* aus Zeit und Rückschlägen; sie ersetzt die kosmetische
+  Echo-Variantenwahl und ist die spätere Grundlage der Kopplung zwischen den Leveln.
 
-- **Mechanik:** vertrauter Resonanz folgen, wandernde Rauchfelder lesen, oberen riskanten oder unteren
-  ruhigeren Korridor wählen, die abnehmende Wahrnehmungsklarheit stabilisieren und weitergehen.
-- **Dramaturgie:** Das vertraute Signal ermöglicht bewusst den Ausgang und bleibt an der Schwelle.
-- **Hilfen:** deutlichere Resonanz und Freiräume; Richtungsströmung; getragener Weg.
-- **Telemetrie:** Hauptweg, Rauchkontakte, mittlere und minimale Klarheit, Reaktionszeit, Nähe,
-  Umkehrbewegungen und Zeit bis zum Weitergehen.
-- **Echo:** der tatsächlich gewählte Bildschirmweg kehrt wieder.
+Der Abschnitt endet, sobald das Soll erreicht ist. `maximumDurationMs` ist nur noch Notbremse: bei
+78 % davon schaltet die Szene selbst auf Hilfestufe 3, statt hart abzuschneiden.
 
-## Level 5 · Verbinde — implementiert
+**Sprachregel:** HUD, Briefing und Anweisungen nennen ausschließlich Verben und Mengen, niemals
+Wesen oder Stoffe. Nur so können Echo und Replay überhaupt noch etwas aufdecken.
 
-- **Mechanik:** drei durch Farbe und Form unterscheidbare Beziehungssignale, Annäherung und eine
-  aktive Rhythmusantwort per Leertaste oder Antippen. Es folgen konkurrierende Bedürfnisse, mehrere
-  Rettungsstrategien, die jeweils kurz sichtbar wirken und wieder erlöschen, sowie ruhiges Bleiben.
-- **Dramaturgie:** Größere Verletzlichkeit ermöglicht zugleich tiefere Freude, Verantwortung und Verlust.
-- **Hilfen:** stärkere Antwortmuster; sanfte Zielresonanz; getragene Nähe statt Automatik-Niederlage.
-- **Telemetrie:** Rhythmustreffer und längste Folge, bevorzugtes Signal, gemeinsame Zeit,
-  Verantwortungsentscheidung, Rettungsreihenfolge, Bewegungsintensität im Verlust und Bleibezeit.
-- **Echo:** Beziehungsmotiv, Entscheidung und Such- beziehungsweise Bleibetendenz bestimmen die Variante.
+## Level 3 · Versorge — überarbeitet
 
-## Level 6 · Lass los — implementiert
+- **Mechanik:** drei aktiv zu fangende Pulse; danach zwei Empfänger mit unabhängig sinkendem
+  Bedarf, eine wandernde Quelle und fünf driftende Gefahrenfelder. Getragene Fracht ist der Puffer
+  und schwindet in den Feldern; leere Fracht bedeutet Rückschlag und neuen Weg zur Quelle.
+- **Soll:** 8 Versorgungen. **Puffer:** Fracht. **Rückschlag:** −1, wenn ein Empfänger leer läuft
+  oder die Fracht zerfällt; danach 7 Sekunden Schonfrist pro Empfänger.
+- **Aussage:** Beide gleichzeitig voll zu versorgen ist nicht möglich. Das ist keine Behauptung des
+  Textes, sondern eine Eigenschaft der Zahlen.
+- **Gemessen:** perfektes Spiel 42 s, Untätigkeit endet nach 128 s an der Notbremse.
 
-- **Mechanik:** Zu Beginn werden vertraute Muster noch einmal aktiv aufgesucht und gesammelt. Erst
-  danach bauen sich Geschwindigkeit, Reichweite, Farben und Sichtfeld ab. Ab diesem Wendepunkt erhöht
-  Aktivität die Spannung; ruhende Eingabe öffnet den Übergang.
-- **Dramaturgie:** Die zuvor gewachsene Kontrolle erreicht ihre Grenze. Stufe 3 führt würdevoll weiter.
-- **Hilfen:** deutlichere Erinnerungsmuster; ruhende Eingabe; kontrolliertes Loslassen.
-- **Telemetrie:** berührte Erinnerungen, Aktivitätsanteil, gesamte und längste Ruhephase, Spannung und Hilfestufe.
-- **Übergang:** Dunkelheit, Schlusssatz als Irritation und anschließend Gesamt-Replay.
+## Level 4 · Bewahre — überarbeitet
+
+- **Mechanik:** Das Begleitsignal geht seinen eigenen, langsamen Weg und wartet nur, wenn man
+  zurückfällt. Sieben Etappen liegen an den Rändern des Korridors, der Rauch liegt zwischen
+  Begleitspur und Etappen. **Eine Etappe zählt nur bei einer Klarheit über 0,4** — das erzwingt den
+  Wechsel aus Vorankommen und Auftanken, statt ihn nur nahezulegen.
+- **Soll:** 7 Etappen und der Ausgang. **Puffer:** Klarheit. **Rückschlag:** eine Etappe zurück.
+- **Wahl:** Der obere Korridor ist dichter im Rauch, der untere ruhiger. Gemessen 44 s gegen 34 s
+  bei gleichem Ergebnis — unterschiedliche Anstrengung, nicht unterschiedlicher Erfolg.
+
+## Level 5 · Verbinde — überarbeitet
+
+- **Mechanik:** Die Rhythmusantwort trägt jetzt den ganzen Abschnitt. Der Takt zieht mit der Serie
+  an (1500 ms auf 900 ms), das Antwortfenster wird enger, ein Fehlschlag setzt die Serie zurück und
+  nimmt Verbindung; ein leerer Puffer lässt kurz stolpern.
+- **Soll:** eine Serie von 8 Treffern, danach 3 Rettungsversuche zu je 3 Treffern in Folge.
+- **Verlustphase:** Die Mechanik bleibt vollständig erhalten, der Takt wird unruhig, und jeder
+  gelungene Versuch verglüht schneller als der vorige. Der Spieler antwortet weiter richtig, und es
+  wirkt trotzdem immer weniger. Das ist der Kern des Spiels und wird gespielt, nicht erzählt.
+
+## Level 6 · Lass los — überarbeitet
+
+- **Mechanik:** Sieben vertraute Muster müssen nicht angetippt, sondern kurz **gehalten** werden.
+  Ab dem Wendepunkt bauen Geschwindigkeit (5,6 auf 1,5), Eingabeverzögerung (bis 420 ms), Abdrift
+  und Reichweite messbar ab — in der Steuerung, nicht im Bild.
+- **Aussage:** Das Erreichbare wird kleiner als das Gewollte. Wer nicht alle sieben schafft, hat
+  nichts falsch gemacht; es gibt in dieser Hälfte keinen Rückschlag mehr, nur noch Ruhe als Ausgang.
 
 ## Gesamt-Replay — implementiert
 

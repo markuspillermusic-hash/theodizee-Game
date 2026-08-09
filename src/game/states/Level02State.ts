@@ -103,9 +103,9 @@ export class Level02State extends TimedLevelScene {
     this.cameras.main.setBackgroundColor(0x070907)
     this.graphics = this.add.graphics()
     this.objectiveHud = new ObjectiveHud(this)
-    this.objectiveHud.set('Gras sammeln', '0', 0)
+    this.objectiveHud.set('Aufnehmen', '0', 0)
     this.beginTimedLevel('Level02', levels.level02, 'AUSSCHNITT · 02', 'Sammle mehr als die anderen.', 'motion', {
-      goal: 'Sammle 15 Grasfelder. Bleibe vor den anderen und weiche der Gefahr aus.',
+      goal: 'Nimm 15 Felder auf. Bleibe vor den anderen und weiche der Gefahr aus.',
       controls: 'WASD / Pfeiltasten · Maus oder Berührung · Leertaste: kurzer Sprint',
     })
   }
@@ -126,9 +126,9 @@ export class Level02State extends TimedLevelScene {
 
   protected applyHint(level: AssistanceLevel): void {
     this.services.setAssistance(level)
-    if (level === 1) this.services.ui.setHint('Freie Grasfelder werden deutlicher markiert.')
-    if (level === 2) this.services.ui.setHint('Eine Linie weist zum nächsten freien Grasfeld.')
-    if (level === 3) this.services.ui.setHint('Freie Grasfelder und Fluchtrichtung werden maximal deutlich.')
+    if (level === 1) this.services.ui.setHint('Freie Felder werden deutlicher markiert.')
+    if (level === 2) this.services.ui.setHint('Eine Linie weist zum nächsten freien Feld.')
+    if (level === 3) this.services.ui.setHint('Freie Felder und Fluchtrichtung werden maximal deutlich.')
   }
 
   protected collectResult(): LevelResult {
@@ -188,12 +188,12 @@ export class Level02State extends TimedLevelScene {
     else if (this.phase === 1 && phaseElapsed >= 8_000 * scale) {
       this.others[this.chasedIndex].carried = false
       this.enterPhase(2)
-      this.services.ui.setInstruction('Sammle 10 Grasfelder.')
+      this.services.ui.setInstruction('Nimm 10 Felder auf.')
     } else if (this.phase === 2 && (this.foodCollected >= 10 || this.elapsedMs >= 42_000 * scale)) this.startCompetitorHunt(3, 1)
     else if (this.phase === 3 && phaseElapsed >= 8_000 * scale) {
       this.others[this.chasedIndex].carried = false
       this.enterPhase(4)
-      this.services.ui.setInstruction('Erreiche 15 Grasfelder.')
+      this.services.ui.setInstruction('Erreiche 15 Felder.')
     } else if (this.phase === 4 && (this.foodCollected >= 15 || this.elapsedMs >= this.storyDurationMs * 0.78)) {
       this.enterPhase(5)
       this.chaseStartX = this.player.x
@@ -438,7 +438,7 @@ export class Level02State extends TimedLevelScene {
     }
     const activeScores = [this.foodCollected, ...this.others.filter((signal) => !signal.captured).map((signal) => signal.score)]
     const rank = 1 + activeScores.filter((score, index) => index > 0 && score > this.foodCollected).length
-    this.objectiveHud.set('Gras · Platz', `${this.foodCollected} · ${rank}/${activeScores.length}`, Math.min(1, this.foodCollected / 12))
+    this.objectiveHud.set('Aufnehmen · Platz', `${this.foodCollected} · ${rank}/${activeScores.length}`, Math.min(1, this.foodCollected / 12))
   }
 
   private sample(delta: number): void {

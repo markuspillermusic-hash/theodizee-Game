@@ -77,13 +77,15 @@ Steuerung dargestellt.
 |---|---|---|
 | 1 · Bleibe | Wachstum im Licht; Sonnenbogen mit Untergang und Wiederaufgang | Richtung, Lichtzeit, erreichte Länge |
 | 2 · Folge | kompakte gestreifte Signalkörper, Nahrungssuche, Konkurrenz und frühe unvermeidliche Jagd | Funde, Konkurrenzverluste, Energie, Fluchtbewegung |
-| 3 · Versorge | aktive Empfangspulse, Spur-Etappen, Ressource, Risiko und Rückkehr | Pulse, Spur, Frachtstärke, Rückkehrbewegungen |
-| 4 · Bewahre | vertrauter Resonanz folgen, Rauchzonen, riskante Wegwahl, Weitergehen | Weg, Rauchexposition, Klarheit, Nähe, Reaktion |
-| 5 · Verbinde | Begegnung, spielbarer Pulsrhythmus, Verantwortung, Rettungsversuche, Bleiben | Rhythmustreffer, bevorzugtes Signal, Entscheidung, Versuche |
-| 6 · Lass los | Erinnerungsmuster aufsuchen; danach Kontroll- und Wahrnehmungsabbau | Erinnerungen, Aktivität, Loslassen, Hilfebedarf |
+| 3 · Versorge | zwei Empfänger, eine Tragkraft, driftende Gefahrenfelder · Soll 8 | Versorgungen, Fracht, Rückschläge, Weg, Güte |
+| 4 · Bewahre | Klarheit als ausgebbare Ressource, Etappen zählen nur bei klarer Sicht · Soll 7 | Etappen, Klarheit, Auftankzeit, Korridor, Güte |
+| 5 · Verbinde | durchgehende Rhythmusantwort mit anziehendem Takt · Soll Serie 8, dann 3 Versuche | Treffer, längste Serie, Signal, Entscheidung, Güte |
+| 6 · Lass los | Muster halten statt antippen; danach messbarer Steuerungsabbau | Erinnerungen, Aktivität, Abbau, Loslassen |
 | Finale | fünfteilige Zusammenschau | Richtung, Spur, Weg und Beziehungsmotiv |
 
-Die regulären Konfigurationszeiten ergeben mit Übergängen und Spielerwechseln ungefähr 30 bis
+Level 3 bis 6 enden, sobald ihr Soll erreicht ist; die Zeitgrenze ist nur noch Notbremse und löst
+kurz davor automatisch die höchste Hilfestufe aus. Gemessene Werte bei perfektem Spiel: 42 s, 34 bis
+44 s, 29 s und rund 24 s. Mit Echos, Übergängen und Spielerwechseln ergibt das ungefähr 30 bis
 35 Minuten. Der Testmodus verkürzt den kompletten automatischen Durchlauf auf rund 1,5 Minuten.
 
 ## Lehrersteuerung
