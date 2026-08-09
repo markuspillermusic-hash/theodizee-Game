@@ -285,7 +285,9 @@ export class Level05State extends TimedLevelScene {
     // Das Fenster wird mit der Serie enger; Hilfestufen öffnen es wieder.
     const base = this.phase === 3 ? 0.2 : Phaser.Math.Linear(0.21, 0.13, this.streak / STREAK_TARGET)
     const window = base + (assistance >= 1 ? 0.06 : 0) + (assistance >= 3 ? 0.05 : 0)
-    const inWindow = beatPhase < window || beatPhase > 1 - window
+    // Ein einziger gueltiger Moment: wenn der zulaufende Ring den inneren Kreis erreicht.
+    // Zwei getrennte Fenster pro Takt waren nicht lesbar.
+    const inWindow = beatPhase > 1 - window
     const reach = assistance >= 2 ? 300 : 235
     const closeEnough = distancePreferred < reach
 

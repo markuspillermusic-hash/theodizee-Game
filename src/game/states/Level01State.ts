@@ -203,7 +203,7 @@ export class Level01State extends BaseScene {
     const equivalentDelta = delta / this.services.getTimeScale()
     const lightQuality = this.getLightQuality()
     if (lightQuality > 0.08) {
-      this.growthTarget = Phaser.Math.Clamp(this.growthTarget + equivalentDelta * 0.0000048 * lightQuality, 0.06, 0.82)
+      this.growthTarget = Phaser.Math.Clamp(this.growthTarget + equivalentDelta * 0.0000102 * lightQuality, 0.06, 0.82)
       const smoothing = Phaser.Math.Clamp(equivalentDelta * 0.00018, 0, 0.08)
       this.growth += (this.growthTarget - this.growth) * smoothing
     }

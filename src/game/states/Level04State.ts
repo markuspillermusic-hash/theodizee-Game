@@ -361,10 +361,10 @@ export class Level04State extends TimedLevelScene {
 
     if (this.phase >= 1) {
       this.getSmokePockets(this.elapsedMs).forEach((pocket) => {
-        const strength = pocket.radius > 0 ? 0.1 + pocket.density * 0.11 : 0
+        const strength = pocket.radius > 0 ? 0.26 + pocket.density * 0.22 : 0
         g.fillStyle(0xb5aaa5, strength)
         g.fillCircle(pocket.x, pocket.y, pocket.radius)
-        g.lineStyle(assistance >= 1 ? 3 : 2, 0xd1c3bb, strength * 0.72)
+        g.lineStyle(assistance >= 1 ? 4 : 3, 0xd8cbc2, Math.min(0.85, strength * 1.5))
         g.strokeCircle(pocket.x, pocket.y, pocket.radius)
       })
     }
@@ -412,8 +412,8 @@ export class Level04State extends TimedLevelScene {
     g.strokeCircle(this.player.x, this.player.y, 22)
     g.lineStyle(3, 0xe8e4d8, 0.06 + this.clarity * 0.1)
     g.strokeCircle(this.player.x, this.player.y, Phaser.Math.Linear(140, 440, this.clarity))
-    if (this.clarity < 0.7) {
-      g.fillStyle(0x8f8784, (0.7 - this.clarity) * 0.34)
+    if (this.clarity < 0.85) {
+      g.fillStyle(0x8f8784, (0.85 - this.clarity) * 0.95)
       g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
     }
 

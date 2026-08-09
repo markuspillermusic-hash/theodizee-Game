@@ -176,7 +176,11 @@ export class Level06State extends TimedLevelScene {
     while (this.inputHistory.length > 2 && this.inputHistory[1].atMs <= this.elapsedMs - lagMs) this.inputHistory.shift()
     const input = this.inputHistory[0]
 
-    const active = raw.active || this.inputManager.isActionDown() || this.velocity.length() > 0.35
+    // Die Abdrift ist nicht die Bewegung des Spielers. Wuerde sie mitzaehlen, laege die
+    // Geschwindigkeit im Beharrungszustand bei 0,41 x Abbau und damit dauerhaft ueber der
+    // Schwelle: Die Ruhephase waere nicht gewinnbar.
+    const ownMotion = Math.max(0, this.velocity.length() - this.drift.length() * 5)
+    const active = raw.active || this.inputManager.isActionDown() || ownMotion > 0.35
     const canRelease = this.memoriesVisited.size >= MEMORY_TARGET || this.decay >= 0.86
 
     if (canRelease && !this.releasePhaseStarted) {
