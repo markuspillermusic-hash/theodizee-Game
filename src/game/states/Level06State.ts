@@ -7,21 +7,26 @@ import type { AssistanceLevel, Direction, LevelResult } from '../types'
 import { TimedLevelScene } from './TimedLevelScene'
 import { dust, glow, ground, palette, self, Sparks, vignette } from '../visuals'
 
-interface Recipient {
+interface Soul {
   x: number
   y: number
-  /** Wie hell dieses Gegenüber gerade ist, 0 bis 1. */
+  /** Wie hell, 0 bis 1. Sinkt in der Finsternis, steigt im Licht. */
   level: number
-  /** Einmal voll — bleibt dann hell und fällt nicht zurück. */
-  completed: boolean
-  /** Fortgenommen: die Station „Verlust". */
+  /** Hat je die volle Helligkeit erreicht. Zählt für immer, auch wenn es später erlischt. */
+  kindled: boolean
+  /** Fortgenommen (Verlust) — nicht mehr im Bild. */
   gone: boolean
-  /** Hinter der Grenze: die Station „Ohnmacht". */
+  /** Hinter der Grenze (Ohnmacht) — sichtbar, nicht erreichbar. */
   beyond: boolean
-  /** Ob es je Licht von dir bekommen hat. Entscheidet über das Schlussbild. */
-  touched: boolean
-  bornAt: number
-  litAt: number
+  /** Kann nichts annehmen (Einsamkeit). Bleibt dunkel, was immer man tut. */
+  closed: boolean
+}
+
+interface Dark {
+  x: number
+  y: number
+  radius: number
+  alive: boolean
 }
 
 interface Mote {
@@ -30,53 +35,55 @@ interface Mote {
   toX: number
   toY: number
   bornAt: number
-  travelMs: number
   taken: boolean
 }
 
-const GIVE_TARGET = 9
-const BARRIER_X = 1_430
+const KINDLE_TARGET = 8
+const BASE_RADIUS = 96
+const RADIUS_PER_SOUL = 30
+const MAX_RADIUS = 340
+const BARRIER_X = 1_460
 const LIGHT_X = 960
 const LIGHT_Y = 540
 
 /**
  * Lass los · „Weitergeben".
  *
- * Der frühere Entwurf machte das Leid selbst zur Aufgabe. Das kann nicht funktionieren: Wäre das
- * Verhindern die Aufgabe, wäre jedes Leid ein Versagen der spielenden Person — genau das, was
- * dieses Spiel nicht behaupten darf. Und weil sich nichts verhindern liess, gab es am Ende gar
- * nichts zu tun.
+ * **Wofür das Licht steht.** Nicht für Lebenskraft, sondern für weitergegebene Liebe. Die
+ * unterliegt keiner Erhaltung: Sie wird nicht weniger, wenn man sie teilt. Ein früherer Entwurf
+ * modellierte sie als schwindenden Vorrat — das sagte genau das Falsche.
  *
- * Deshalb ist die Aufgabe jetzt eine andere, und das Leid **stört** dabei:
+ * Knapp ist nicht das Licht, **knapp bist du**: deine Zeit, dein Körper, deine Reichweite. Du
+ * kannst nicht an zwei Orten sein. Daraus kommt der ganze Widerstand.
  *
- * Du hast endliches Licht. Andere brauchen welches. Berühren überträgt, Geben kostet dich, der
- * Vorrat erholt sich nur langsam. Daraus entstehen echte Entscheidungen — wen, wie viel, wann, in
- * welcher Reihenfolge — und eine Fertigkeit, die man besser oder schlechter beherrschen kann.
+ * Und es wächst: Jeder, den du entzündest, vergrössert deinen eigenen Schein. Wer mehr gibt, kann
+ * mehr erreichen. Gutes tun macht grösser.
  *
- * Die vier Gesichter des Leids brechen in diese laufende Aufgabe hinein: Verlust nimmt einen mitsamt
- * dem, was man investiert hat. Schuld lässt zwei zugleich rufen, die weit auseinanderliegen.
- * Ohnmacht zeigt einen hinter einer Grenze. Einsamkeit heisst: eine Strecke lang nimmt niemand an.
+ * Gegen dich steht die Finsternis — unpersönlich, kein böser Mensch. Sie löscht, was du entzündet
+ * hast, während du woanders bist, und weicht vor Licht zurück. Auch vor dem Licht derer, die du
+ * entzündet hast: Sie halten mit, ohne dich.
  *
- * Gezählt wird, **was du weggegeben hast** — nicht, wie viele am Ende noch brennen. Wer sich
- * verausgabt und trotzdem alle verliert, steht hoch da. Am Ende entzündet sich jedes Licht wieder,
- * das du je berührt hast, auch die erloschenen.
+ * Die vier Gesichter des Leids brechen in die laufende Aufgabe hinein: einer wird ganz genommen
+ * (Verlust), zwei Seiten brechen gleichzeitig ein (Endlichkeit), einer liegt hinter einer Grenze
+ * (Ohnmacht), einer kann nichts annehmen (Einsamkeit).
+ *
+ * Am Ende versagt dein Körper, aber nicht dein Werk: Die Lichter halten weiter. Dann kommt das
+ * grosse Licht, und alles, was je gebrannt hat, brennt wieder.
  */
 export class Level06State extends TimedLevelScene {
   private graphics!: Phaser.GameObjects.Graphics
   private player = new Phaser.Math.Vector2(960, 620)
   private velocity = new Phaser.Math.Vector2()
-  private reserve = 0
-  private capacity = 1
-  private recipients: Recipient[] = []
+  private souls: Soul[] = []
+  private darks: Dark[] = []
   private motes: Mote[] = []
+  private received = 0
+  private kindledCount = 0
+  private lostOnes = 0
+  private relit = 0
   private phase = 0
   private phaseStartedAt = 0
   private eventIndex = 0
-  private lonelyUntil = -1
-  private given = 0
-  private lostOnes = 0
-  private spentTotal = 0
-  private kindled = 0
   private sampleClock = 0
   private sparks = new Sparks()
   private objectiveHud!: ObjectiveHud
@@ -89,32 +96,36 @@ export class Level06State extends TimedLevelScene {
   create(): void {
     this.player.set(960, 620)
     this.velocity.set(0, 0)
-    this.reserve = 0
-    this.capacity = 1
-    this.recipients = []
-    this.motes = []
+    this.souls = []
+    this.darks = []
+    this.received = 0
+    this.kindledCount = 0
+    this.lostOnes = 0
+    this.relit = 0
     this.phase = 0
     this.phaseStartedAt = 0
     this.eventIndex = 0
-    this.lonelyUntil = -1
-    this.given = 0
-    this.lostOnes = 0
-    this.spentTotal = 0
-    this.kindled = 0
     this.sampleClock = 0
     this.sparks = new Sparks()
+    this.motes = [[700, 430], [1_200, 700], [860, 800]].map(([x, y], index) => ({
+      x: index % 2 === 0 ? -140 : GAME_WIDTH + 140,
+      y: 240 + index * 220,
+      toX: x,
+      toY: y,
+      bornAt: 900 * index * this.timeScale(),
+      taken: false,
+    }))
     this.graphics = this.add.graphics()
     this.objectiveHud = new ObjectiveHud(this)
     this.goal = new GoalTracker(this.objectiveHud, {
-      label: 'Empfangen', target: 4, bufferLabel: 'Dein Licht',
+      label: 'Empfangen', target: 3, bufferLabel: 'Dein Licht',
     })
     this.goal.resetBuffer(0)
     this.cameras.main.setBackgroundColor(0x070709)
     this.beginTimedLevel('Level06', levels.level06, 'AUSSCHNITT · 06', 'Nimm auf, was zu dir kommt.', 'release', {
-      goal: 'Du hast Licht, das dir gegeben wurde. Gib es weiter, solange du kannst.',
+      goal: 'Dein Licht wird nicht weniger, wenn du es weitergibst — es wächst. Aber du kannst nicht überall sein.',
       controls: 'WASD / Pfeiltasten · Maus oder Berührung',
     })
-    this.spawnMotes()
   }
 
   update(time: number, delta: number): void {
@@ -122,33 +133,41 @@ export class Level06State extends TimedLevelScene {
     const progress = this.advanceLevel(delta)
     if (this.finished || progress < 0) return
     this.goal.advance(delta)
-    this.updatePhase(delta)
+    this.updatePhase()
     this.updateControl(delta)
-    if (this.phase === 0) this.updateMotes(delta)
-    else if (this.phase < 4) this.updateGiving(delta)
-    else this.updateKindling()
-    this.goal.resetBuffer(this.reserve)
+    if (this.phase === 0) this.updateMotes()
+    else if (this.phase < 4) {
+      this.updateDarks(delta)
+      this.updateSouls(delta)
+    } else this.updateFinalLight()
+    this.goal.resetBuffer(Phaser.Math.Clamp((this.radius() - BASE_RADIUS) / (MAX_RADIUS - BASE_RADIUS), 0, 1))
     this.drawWorld(time)
   }
 
   protected applyHint(level: AssistanceLevel): void {
     this.services.setAssistance(level)
-    if (level === 1) this.services.ui.setHint('Berühren überträgt. Es reicht nie für alle.')
-    if (level === 2) this.services.ui.setHint('Wer schon voll ist, bleibt hell. Kümmere dich um die schwachen.')
-    if (level === 3) this.services.ui.setHint('Dein Licht füllt sich schneller nach.')
+    if (level === 1) this.services.ui.setHint('Jeder, den du entzündest, vergrössert dein Licht.')
+    if (level === 2) this.services.ui.setHint('Wer brennt, hält die Finsternis selbst ein Stück zurück.')
+    if (level === 3) this.services.ui.setHint('Dein Licht reicht weiter.')
   }
 
   protected collectResult(): LevelResult {
+    // Ein einziger, eindeutiger Selektor für den Film: viele Lichter oder wenige.
+    const many = this.kindledCount >= Math.ceil(KINDLE_TARGET * 0.7)
     return {
-      choices: { released: this.phase >= 4, heldOn: this.reserve > 0.4 },
+      choices: {
+        light: many ? 'viele' : 'wenige',
+        released: this.phase >= 4,
+      },
       metrics: {
-        given: this.given,
-        giveTarget: GIVE_TARGET,
-        spentTotal: this.spentTotal,
+        kindled: this.kindledCount,
+        kindleTarget: KINDLE_TARGET,
+        stillBurning: this.souls.filter((soul) => !soul.gone && soul.level > 0.5).length,
         lostOnes: this.lostOnes,
-        kindled: this.kindled,
-        touched: this.recipients.filter((entry) => entry.touched).length,
-        gradeScore: this.given >= GIVE_TARGET ? 2 : this.given >= GIVE_TARGET * 0.55 ? 1 : 0,
+        relit: this.relit,
+        received: this.received,
+        finalRadius: this.radius(),
+        gradeScore: this.kindledCount >= KINDLE_TARGET ? 2 : many ? 1 : 0,
       },
     }
   }
@@ -165,214 +184,249 @@ export class Level06State extends TimedLevelScene {
     return this.services.getTimeScale()
   }
 
-  private reach(): number {
-    const assist = this.hintManager.getLevel() >= 2 ? 16 : 0
-    return (this.phase >= 3 ? Phaser.Math.Linear(92, 54, this.decay()) : 92) + assist
+  /** Der eigene Schein. Er wächst mit jedem Entzündeten und schrumpft nie. */
+  private radius(): number {
+    if (this.phase === 0) return BASE_RADIUS * 0.45 + this.received * 22
+    const assist = this.hintManager.getLevel() >= 3 ? 40 : 0
+    return Math.min(MAX_RADIUS, BASE_RADIUS + this.kindledCount * RADIUS_PER_SOUL + assist)
   }
 
-  /** 0 bis 1, wie weit der eigene Abbau fortgeschritten ist. */
-  private decay(): number {
-    if (this.phase < 3) return 0
-    if (this.phase >= 4) return 1
-    return Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (15_000 * this.timeScale()), 0, 1)
+  /** Licht an einer Stelle: das eigene plus das aller, die brennen. */
+  private lightAt(x: number, y: number): number {
+    let value = 0
+    const own = this.radius()
+    const toPlayer = Phaser.Math.Distance.Between(x, y, this.player.x, this.player.y)
+    if (toPlayer < own) value += 1 - toPlayer / own
+    this.souls.forEach((soul) => {
+      if (soul.gone || soul.level < 0.35) return
+      const reach = 70 + soul.level * 150
+      const distance = Phaser.Math.Distance.Between(x, y, soul.x, soul.y)
+      if (distance < reach) value += (1 - distance / reach) * soul.level * 0.7
+    })
+    return value
   }
 
-  private spawnMotes(): void {
-    const targets = [[700, 430], [1_180, 700], [820, 780], [1_150, 400]]
-    this.motes = targets.map(([x, y], index) => ({
-      x: index % 2 === 0 ? -120 : GAME_WIDTH + 120,
-      y: 200 + index * 190,
-      toX: x,
-      toY: y,
-      bornAt: 1_200 * index * this.timeScale(),
-      travelMs: 2_600 * this.timeScale(),
-      taken: false,
-    }))
+  private darkAt(x: number, y: number): number {
+    let value = 0
+    this.darks.forEach((dark) => {
+      if (!dark.alive) return
+      const distance = Phaser.Math.Distance.Between(x, y, dark.x, dark.y)
+      if (distance < dark.radius) value += 1 - distance / dark.radius
+    })
+    return value
   }
 
-  private addRecipients(entries: Array<[number, number, boolean?]>): void {
-    entries.forEach(([x, y, beyond]) => {
-      this.recipients.push({
-        x, y, level: 0, completed: false, gone: false, beyond: Boolean(beyond),
-        touched: false, bornAt: this.elapsedMs, litAt: -1,
+  private addSouls(entries: Array<[number, number, ('beyond' | 'closed')?]>): void {
+    entries.forEach(([x, y, kind]) => {
+      this.souls.push({
+        x, y, level: 0, kindled: false, gone: false,
+        beyond: kind === 'beyond', closed: kind === 'closed',
       })
     })
   }
 
-  private updatePhase(delta: number): void {
+  private addDark(x: number, y: number, radius: number): void {
+    this.darks.push({ x, y, radius, alive: true })
+  }
+
+  private updatePhase(): void {
     const scale = this.timeScale()
     const local = this.elapsedMs - this.phaseStartedAt
-
     if (this.phase === 0) {
-      if (this.goal.reached || this.elapsedMs >= 13_000 * scale) this.enterPhase(1)
+      if (this.goal.reached || this.elapsedMs >= 11_000 * scale) this.enterPhase(1)
       return
     }
     if (this.phase === 1) {
-      if (local >= 19_000 * scale) this.enterPhase(2)
+      if (local >= 17_000 * scale) this.enterPhase(2)
       return
     }
     if (this.phase === 2) {
       this.runResistances(local, scale)
-      if (local >= 31_000 * scale) this.enterPhase(3)
+      if (local >= 23_000 * scale) this.enterPhase(3)
       return
     }
     if (this.phase === 3) {
-      this.capacity = Phaser.Math.Linear(1, 0.4, this.decay())
-      this.reserve = Math.min(this.reserve, this.capacity)
-      if (local >= 15_000 * scale) this.enterPhase(4)
+      if (local >= 14_000 * scale) this.enterPhase(4)
       return
     }
-    if (this.phase === 4 && local >= 16_000 * scale) this.finishLevel()
-    void delta
-  }
-
-  /** Die vier Gesichter des Leids, mitten in die laufende Aufgabe hinein. */
-  private runResistances(local: number, scale: number): void {
-    if (this.eventIndex === 0 && local >= 2_500 * scale) {
-      // Verlust: einer, in den man schon investiert hat, wird fortgenommen.
-      this.eventIndex = 1
-      const victim = [...this.recipients]
-        .filter((entry) => !entry.gone && !entry.completed && entry.touched)
-        .sort((a, b) => b.level - a.level)[0] ?? this.recipients.find((entry) => !entry.gone)
-      if (victim) {
-        victim.gone = true
-        this.lostOnes += 1
-        this.sparks.emit(victim.x, victim.y, 0x8fd0d8, 160, 900)
-        this.services.audio.pulse(64, 0.08)
-        this.cameras.main.shake(260, 0.004)
-      }
-      this.services.ui.setInstruction('Er ist fort.')
-      return
-    }
-    if (this.eventIndex === 1 && local >= 10_000 * scale) {
-      // Schuld: zwei zugleich, weit auseinander. Einer bleibt liegen.
-      this.eventIndex = 2
-      this.addRecipients([[320, 340], [1_600, 800]])
-      this.services.ui.setInstruction('Zwei zugleich.')
-      this.services.audio.playMotif('care', 0.16)
-      return
-    }
-    if (this.eventIndex === 2 && local >= 18_000 * scale) {
-      // Ohnmacht: sichtbar, bedürftig, unerreichbar.
-      this.eventIndex = 3
-      this.addRecipients([[1_690, 420, true]])
-      this.services.ui.setInstruction('Du kommst nicht hinüber.')
-      this.services.audio.pulse(88, 0.05)
-      return
-    }
-    if (this.eventIndex === 3 && local >= 24_500 * scale) {
-      // Einsamkeit: eine Strecke lang nimmt niemand etwas an.
-      this.eventIndex = 4
-      this.lonelyUntil = this.elapsedMs + 7_000 * scale
-      this.services.ui.setInstruction('Es nimmt gerade niemand.')
-      this.services.audio.playMotif('release', 0.16)
-    }
+    if (this.phase === 4 && local >= 14_000 * scale) this.finishLevel()
   }
 
   private enterPhase(next: number): void {
     this.phase = next
     this.phaseStartedAt = this.elapsedMs
-    const scale = this.timeScale()
     if (next === 1) {
-      this.goal.relabel('Weitergegeben', GIVE_TARGET)
+      this.goal.relabel('Entzündet', KINDLE_TARGET)
       this.goal.setValue(0)
-      this.addRecipients([[560, 400], [1_320, 620], [880, 820]])
-      this.services.ui.setInstruction('Gib weiter.')
+      this.addSouls([[520, 380], [1_260, 640], [860, 850], [1_500, 330]])
+      this.services.ui.setInstruction('Geh hin. Dein Licht tut den Rest.')
       this.services.audio.playMotif('bond', 0.18)
     } else if (next === 2) {
-      this.services.ui.setInstruction('Gib weiter.')
+      this.addDark(1_700, 880, 190)
+      this.addDark(240, 240, 170)
+      this.services.ui.setInstruction('Es wird dunkel an den Rändern.')
+      this.services.audio.playMotif('release', 0.16)
     } else if (next === 3) {
-      this.services.ui.setInstruction('Es wird weniger.')
+      this.services.ui.setInstruction('Du wirst langsamer.')
       this.services.audio.playMotif('release', 0.2)
     } else if (next === 4) {
-      this.reserve = 0
       this.velocity.set(0, 0)
-      this.goal.relabel('Weitergegeben', Math.max(GIVE_TARGET, this.given))
-      this.goal.setValue(this.given)
+      this.goal.relabel('Entzündet', Math.max(KINDLE_TARGET, this.kindledCount))
+      this.goal.setValue(this.kindledCount)
       this.services.ui.setInstruction('')
       this.services.ui.setHint('')
       this.services.audio.playMotif('release', 0.34)
-      void scale
     }
   }
 
-  private updateMotes(delta: number): void {
+  /** Die vier Gesichter des Leids, mitten in die laufende Aufgabe hinein. */
+  private runResistances(local: number, scale: number): void {
+    if (this.eventIndex === 0 && local >= 3_000 * scale) {
+      this.eventIndex = 1
+      // Verlust: einer, der schon brannte, wird ganz genommen.
+      const victim = this.souls.filter((soul) => !soul.gone && soul.kindled)
+        .sort((a, b) => b.level - a.level)[0]
+      if (victim) {
+        victim.gone = true
+        this.lostOnes += 1
+        this.sparks.emit(victim.x, victim.y, 0x8fd0d8, 190, 1_000)
+        this.services.audio.pulse(62, 0.09)
+        this.cameras.main.shake(280, 0.0045)
+        this.services.ui.setInstruction('Einer ist fort.')
+      }
+      return
+    }
+    if (this.eventIndex === 1 && local >= 8_500 * scale) {
+      this.eventIndex = 2
+      // Endlichkeit: zwei Seiten zugleich. Du hast nur einen Körper.
+      this.addSouls([[330, 780], [1_620, 400]])
+      this.addDark(300, 820, 200)
+      this.addDark(1_660, 360, 200)
+      this.services.ui.setInstruction('Zwei Seiten zugleich.')
+      this.services.audio.pulse(88, 0.05)
+      return
+    }
+    if (this.eventIndex === 2 && local >= 14_500 * scale) {
+      this.eventIndex = 3
+      // Ohnmacht: sichtbar, bedürftig, jenseits der Grenze.
+      this.addSouls([[1_700, 640, 'beyond']])
+      this.addDark(1_760, 660, 210)
+      this.services.ui.setInstruction('Du kommst nicht hinüber.')
+      return
+    }
+    if (this.eventIndex === 3 && local >= 19_000 * scale) {
+      this.eventIndex = 4
+      // Einsamkeit: einer, der nichts annehmen kann.
+      this.addSouls([[960, 300, 'closed']])
+      this.services.ui.setInstruction('Er nimmt nichts an.')
+      this.services.audio.playMotif('release', 0.16)
+    }
+  }
+
+  private updateMotes(): void {
     this.motes.forEach((mote) => {
       if (mote.taken || this.elapsedMs < mote.bornAt) return
-      const local = Phaser.Math.Clamp((this.elapsedMs - mote.bornAt) / mote.travelMs, 0, 1)
-      mote.x = Phaser.Math.Linear(mote.x, mote.toX, 0.04)
-      mote.y = Phaser.Math.Linear(mote.y, mote.toY, 0.04)
-      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, mote.x, mote.y) > this.reach()) return
+      mote.x = Phaser.Math.Linear(mote.x, mote.toX, 0.035)
+      mote.y = Phaser.Math.Linear(mote.y, mote.toY, 0.035)
+      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, mote.x, mote.y) > 70) return
       mote.taken = true
-      this.reserve = Math.min(this.capacity, this.reserve + 0.3)
-      this.sparks.emit(this.player.x, this.player.y, palette.licht, 80, 560)
-      this.services.audio.pulse(210 + this.goal.value * 20, 0.05)
+      this.received += 1
       this.goal.add(1)
-      void local
-    })
-    void delta
-  }
-
-  private updateGiving(delta: number): void {
-    const scale = this.timeScale()
-    const step = delta / scale
-    const lonely = this.lonelyUntil > 0 && this.elapsedMs < this.lonelyUntil
-
-    // Man empfängt weiter, nur langsam. Niemand lebt aus sich selbst.
-    const refill = this.hintManager.getLevel() >= 3 ? 0.000075 : 0.000045
-    this.reserve = Math.min(this.capacity, this.reserve + step * refill)
-
-    this.recipients.forEach((entry) => {
-      if (entry.gone) return
-      if (!entry.completed) entry.level = Math.max(0, entry.level - step * 0.000042)
-      if (entry.completed || entry.beyond || lonely) return
-      const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, entry.x, entry.y)
-      if (distance > this.reach() || this.reserve <= 0.002) return
-      const amount = Math.min(this.reserve, step * 0.00055)
-      this.reserve -= amount
-      this.spentTotal += amount
-      entry.level = Math.min(1, entry.level + amount * 1.45)
-      entry.touched = true
-      if (entry.level < 1) return
-      entry.completed = true
-      entry.litAt = this.elapsedMs
-      this.given += 1
-      this.goal.setValue(this.given)
-      this.sparks.emit(entry.x, entry.y, palette.licht, 130, 700)
-      this.services.audio.pulse(232 + (this.given % 5) * 22, 0.055)
+      this.sparks.emit(this.player.x, this.player.y, palette.licht, 90, 600)
+      this.services.audio.pulse(206 + this.received * 22, 0.05)
     })
   }
 
-  /** Im Schluss entzündet sich alles wieder, was je Licht von dir bekommen hat. */
-  private updateKindling(): void {
+  private updateDarks(delta: number): void {
+    const step = delta / this.timeScale()
+    const frameScale = Phaser.Math.Clamp(delta / 16.667, 0.4, 2.4)
+    const pressure = this.phase >= 3 ? 1.5 : 1
+    this.darks.forEach((dark) => {
+      if (!dark.alive) return
+      // Sie zieht zu dem, was brennt — und weicht, wo das Licht stark ist.
+      let bestX = dark.x
+      let bestY = dark.y
+      let best = -1
+      this.souls.forEach((soul) => {
+        if (soul.gone || soul.level < 0.2) return
+        const distance = Phaser.Math.Distance.Between(dark.x, dark.y, soul.x, soul.y)
+        const score = soul.level - distance / 2_600
+        if (score <= best) return
+        best = score
+        bestX = soul.x
+        bestY = soul.y
+      })
+      if (best > -1) {
+        const angle = Phaser.Math.Angle.Between(dark.x, dark.y, bestX, bestY)
+        dark.x += Math.cos(angle) * 0.55 * pressure * frameScale
+        dark.y += Math.sin(angle) * 0.55 * pressure * frameScale
+      }
+      const light = this.lightAt(dark.x, dark.y)
+      const target = light > 0.45 ? 60 : 210
+      dark.radius += (target - dark.radius) * Math.min(1, step * 0.0009)
+      if (dark.radius < 66 && light > 0.8) dark.alive = false
+    })
+  }
+
+  private updateSouls(delta: number): void {
+    const step = delta / this.timeScale()
+    this.souls.forEach((soul) => {
+      if (soul.gone) return
+      if (soul.closed) {
+        soul.level = Math.max(0, soul.level - step * 0.0004)
+        return
+      }
+      const light = soul.beyond ? this.lightAt(soul.x, soul.y) * 0.15 : this.lightAt(soul.x, soul.y)
+      const dark = this.darkAt(soul.x, soul.y)
+      const change = light * 0.00052 - dark * 0.00042
+      soul.level = Phaser.Math.Clamp(soul.level + change * step, 0, 1)
+      if (soul.level < 1 || soul.kindled) return
+      soul.kindled = true
+      this.kindledCount += 1
+      this.goal.setValue(this.kindledCount)
+      this.sparks.emit(soul.x, soul.y, palette.licht, 150, 800)
+      this.services.audio.pulse(228 + (this.kindledCount % 5) * 24, 0.055)
+    })
+  }
+
+  /** Zum Schluss brennt alles wieder, was je gebrannt hat, und die Finsternis weicht ganz. */
+  private updateFinalLight(): void {
     const since = this.elapsedMs - this.phaseStartedAt
-    const touched = this.recipients.filter((entry) => entry.touched)
-    const shouldBe = Phaser.Math.Clamp(Math.floor(since / (1_500 * this.timeScale())), 0, touched.length)
-    while (this.kindled < shouldBe) {
-      const entry = touched[this.kindled]
-      this.kindled += 1
-      entry.gone = false
-      entry.level = 1
-      this.sparks.emit(entry.x, entry.y, palette.licht, 200, 1_400)
-      this.services.audio.pulse(200 + this.kindled * 18, 0.05)
+    const everKindled = this.souls.filter((soul) => soul.kindled)
+    const shouldBe = Phaser.Math.Clamp(Math.floor(since / (1_300 * this.timeScale())), 0, everKindled.length)
+    while (this.relit < shouldBe) {
+      const soul = everKindled[this.relit]
+      this.relit += 1
+      soul.gone = false
+      soul.level = 1
+      this.sparks.emit(soul.x, soul.y, palette.licht, 220, 1_500)
+      this.services.audio.pulse(198 + this.relit * 16, 0.05)
     }
+    this.darks.forEach((dark) => {
+      dark.radius = Math.max(0, dark.radius - 2.4)
+      if (dark.radius < 10) dark.alive = false
+    })
   }
 
   private updateControl(delta: number): void {
     const input = this.inputManager.getVector(this.player.x, this.player.y)
     const frameScale = Phaser.Math.Clamp(delta / 16.667, 0.4, 2.4)
-    if (input.active) {
-      this.velocity.x += input.x * Phaser.Math.Linear(0.78, 0.3, this.decay()) * frameScale
-      this.velocity.y += input.y * Phaser.Math.Linear(0.78, 0.3, this.decay()) * frameScale
+    // Was nachlässt, ist der Körper — nicht das Licht.
+    const frailty = this.phase >= 3
+      ? Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (14_000 * this.timeScale()), 0, 1)
+      : 0
+    if (input.active && this.phase < 4) {
+      const power = Phaser.Math.Linear(0.82, 0.24, frailty)
+      this.velocity.x += input.x * power * frameScale
+      this.velocity.y += input.y * power * frameScale
       const direction: Direction = input.x < -0.2 ? 'left' : input.x > 0.2 ? 'right' : 'center'
       this.services.telemetry.recordDirection(direction)
     }
-    const maxSpeed = this.phase >= 4 ? 1.4 : Phaser.Math.Linear(7.4, 2.6, this.decay())
-    this.velocity.scale(Math.pow(input.active ? 0.92 : 0.86, frameScale)).limit(maxSpeed)
+    const maxSpeed = this.phase >= 4 ? 0.9 : Phaser.Math.Linear(7.6, 2.2, frailty)
+    this.velocity.scale(Math.pow(input.active ? 0.93 : 0.86, frameScale)).limit(maxSpeed)
     this.player.x = Phaser.Math.Clamp(this.player.x + this.velocity.x * frameScale, 150, GAME_WIDTH - 150)
     this.player.y = Phaser.Math.Clamp(this.player.y + this.velocity.y * frameScale, 200, GAME_HEIGHT - 180)
 
-    // Die Grenze der Ohnmacht: sichtbar, aber nicht zu überschreiten.
     if (this.eventIndex >= 3 && this.phase < 4 && this.player.x > BARRIER_X) {
       this.player.x = BARRIER_X
       this.velocity.x = Math.min(0, this.velocity.x)
@@ -380,7 +434,7 @@ export class Level06State extends TimedLevelScene {
 
     this.sampleClock += delta
     if (this.sampleClock >= 120) {
-      this.services.telemetry.sample((this.player.x - 960) / 680, this.velocity.length() / 8, this.reserve > 0.3, this.sampleClock)
+      this.services.telemetry.sample((this.player.x - 960) / 680, this.velocity.length() / 8, this.kindledCount > 0, this.sampleClock)
       this.sampleClock = 0
     }
   }
@@ -388,7 +442,7 @@ export class Level06State extends TimedLevelScene {
   private drawWorld(time: number): void {
     const g = this.graphics
     const growth = this.phase >= 4
-      ? Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (16_000 * this.timeScale()), 0, 1)
+      ? Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (14_000 * this.timeScale()), 0, 1)
       : 0
     g.clear()
     ground(
@@ -396,87 +450,80 @@ export class Level06State extends TimedLevelScene {
       Phaser.Display.Color.GetColor(Math.round(13 + growth * 44), Math.round(13 + growth * 40), Math.round(20 + growth * 32)),
       Phaser.Display.Color.GetColor(Math.round(20 + growth * 46), Math.round(17 + growth * 40), Math.round(22 + growth * 32)),
     )
-    dust(g, time, 42, 0xd6d2e0, 0.008)
+    dust(g, time, 38, 0xd6d2e0, 0.008)
 
-    if (this.eventIndex >= 3 && this.phase < 4) this.drawBarrier(g, time)
-    if (this.phase === 0) this.drawMotes(g)
-    this.drawRecipients(g, time)
-    if (this.phase >= 4) this.drawLight(g, time, growth)
-    this.sparks.draw(g)
-    this.drawSelf(g, time)
+    this.darks.forEach((dark) => {
+      if (!dark.alive || dark.radius < 4) return
+      g.fillStyle(0x000000, 0.5)
+      g.fillCircle(dark.x, dark.y, dark.radius * 0.9)
+      for (let ring = 0; ring < 2; ring += 1) {
+        const phase = time * (0.0005 + ring * 0.0002) + dark.x
+        g.lineStyle(2.4 - ring, 0x3d3550, 0.4 - ring * 0.14)
+        g.beginPath()
+        g.arc(dark.x, dark.y, dark.radius * (0.72 + ring * 0.2), phase, phase + Math.PI * 1.1, false)
+        g.strokePath()
+      }
+    })
 
-    const lonely = this.lonelyUntil > 0 && this.elapsedMs < this.lonelyUntil && this.phase < 4
-    if (lonely) {
-      g.lineStyle(2, 0x9aa39c, 0.18 + Math.sin(time * 0.004) * 0.06)
-      g.strokeCircle(this.player.x, this.player.y, this.reach() + 26)
+    if (this.eventIndex >= 3 && this.phase < 4) {
+      for (let index = 0; index < 24; index += 1) {
+        const y = 190 + index * 36
+        g.lineStyle(2, 0x6f6a86, 0.18 + Math.sin(time * 0.001 + index) * 0.05)
+        g.lineBetween(BARRIER_X + 34, y, BARRIER_X + 62, y + 20)
+      }
     }
+
+    if (this.phase === 0) {
+      this.motes.forEach((mote) => {
+        if (mote.taken || this.elapsedMs < mote.bornAt) return
+        glow(g, mote.x, mote.y, 100, palette.licht, 0.32)
+        g.fillStyle(0xfff4d8, 0.95)
+        g.fillCircle(mote.x, mote.y, 7)
+      })
+    }
+
+    this.souls.forEach((soul) => {
+      if (soul.gone) return
+      const colour = soul.level > 0.9 ? palette.licht : soul.beyond ? 0xb59ad8 : soul.closed ? 0x8b8b96 : 0x8fd0d8
+      glow(g, soul.x, soul.y, 70 + soul.level * 170, colour, 0.08 + soul.level * 0.32)
+      g.lineStyle(6, 0x211d26, 0.6)
+      g.strokeCircle(soul.x, soul.y, 44)
+      g.lineStyle(6, colour, 0.9)
+      g.beginPath()
+      g.arc(soul.x, soul.y, 44, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * soul.level, false)
+      g.strokePath()
+      g.fillStyle(soul.level > 0.9 ? 0xfff6dd : 0xdff4f6, 0.3 + soul.level * 0.6)
+      g.fillCircle(soul.x, soul.y, 10)
+      if (soul.level < 0.3 && this.phase < 4 && !soul.closed) {
+        g.lineStyle(2, colour, 0.16 + Math.sin(time * 0.006 + soul.y) * 0.1)
+        g.strokeCircle(soul.x, soul.y, 68 + Math.sin(time * 0.003 + soul.y) * 9)
+      }
+    })
+
+    if (this.phase >= 4) {
+      const radius = 280 + growth * 1_600
+      glow(g, LIGHT_X, LIGHT_Y, radius, palette.licht, 0.2 + growth * 0.34, 14)
+      glow(g, LIGHT_X, LIGHT_Y, radius * 0.34, 0xfff8e4, 0.26 + growth * 0.36, 12)
+      g.fillStyle(0xfffdf2, 0.8)
+      g.fillCircle(LIGHT_X, LIGHT_Y, 20 + growth * 30)
+    }
+
+    this.sparks.draw(g)
+
+    // Der eigene Schein — die sichtbare Belohnung fürs Weitergeben.
+    if (this.phase < 4) {
+      const own = this.radius()
+      glow(g, this.player.x, this.player.y, own, palette.licht, 0.13)
+      g.lineStyle(2, 0xe6d6a4, 0.26)
+      g.strokeCircle(this.player.x, this.player.y, own)
+    }
+    self(g, this.player.x, this.player.y, time, 1, this.phase >= 4 ? 0.6 : 1)
 
     vignette(g, 0.36 * (1 - growth * 0.7))
     if (growth > 0.66) {
       const wash = Phaser.Math.Clamp((growth - 0.66) / 0.34, 0, 1)
       g.fillStyle(0xfffdf4, Math.pow(wash, 2.2) * 0.97)
       g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
-    }
-  }
-
-  private drawMotes(g: Phaser.GameObjects.Graphics): void {
-    this.motes.forEach((mote) => {
-      if (mote.taken || this.elapsedMs < mote.bornAt) return
-      glow(g, mote.x, mote.y, 90, palette.licht, 0.3)
-      g.fillStyle(0xfff4d8, 0.95)
-      g.fillCircle(mote.x, mote.y, 7)
-    })
-  }
-
-  private drawRecipients(g: Phaser.GameObjects.Graphics, time: number): void {
-    this.recipients.forEach((entry) => {
-      if (entry.gone) return
-      const colour = entry.completed ? palette.licht : entry.beyond ? 0xb59ad8 : 0x8fd0d8
-      const pulse = 1 + Math.sin(time * 0.003 + entry.x) * 0.1
-      glow(g, entry.x, entry.y, (60 + entry.level * 130) * pulse, colour, 0.1 + entry.level * 0.3)
-      g.lineStyle(6, 0x211d26, 0.6)
-      g.strokeCircle(entry.x, entry.y, 46)
-      g.lineStyle(6, colour, 0.9)
-      g.beginPath()
-      g.arc(entry.x, entry.y, 46, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * entry.level, false)
-      g.strokePath()
-      g.fillStyle(entry.completed ? 0xfff6dd : 0xdff4f6, 0.35 + entry.level * 0.6)
-      g.fillCircle(entry.x, entry.y, 10)
-      // Wer noch nichts hat und schwach wird, ruft sichtbar.
-      if (!entry.completed && entry.level < 0.25 && this.phase < 4) {
-        g.lineStyle(2, colour, 0.16 + Math.sin(time * 0.006 + entry.y) * 0.1)
-        g.strokeCircle(entry.x, entry.y, 70 + Math.sin(time * 0.003 + entry.y) * 9)
-      }
-    })
-  }
-
-  private drawBarrier(g: Phaser.GameObjects.Graphics, time: number): void {
-    for (let index = 0; index < 24; index += 1) {
-      const y = 190 + index * 36
-      g.lineStyle(2, 0x6f6a86, 0.18 + Math.sin(time * 0.001 + index) * 0.05)
-      g.lineBetween(BARRIER_X + 34, y, BARRIER_X + 62, y + 20)
-    }
-  }
-
-  private drawLight(g: Phaser.GameObjects.Graphics, time: number, growth: number): void {
-    const radius = 260 + growth * 1_600
-    glow(g, LIGHT_X, LIGHT_Y, radius, palette.licht, 0.2 + growth * 0.34, 14)
-    glow(g, LIGHT_X, LIGHT_Y, radius * 0.34, 0xfff8e4, 0.26 + growth * 0.36, 12)
-    g.fillStyle(0xfffdf2, 0.8)
-    g.fillCircle(LIGHT_X, LIGHT_Y, 18 + Math.sin(time * 0.0015) * 3 + growth * 30)
-  }
-
-  private drawSelf(g: Phaser.GameObjects.Graphics, time: number): void {
-    const strength = this.phase >= 4 ? 0.55 : 0.4 + this.reserve * 0.6
-    self(g, this.player.x, this.player.y, time, 1 - this.decay() * 0.2, strength)
-    // Der eigene Vorrat als Ring an der Gestalt — er ist die eigentliche Ressource.
-    if (this.phase >= 1 && this.phase < 4) {
-      g.lineStyle(5, palette.licht, 0.22 + this.reserve * 0.5)
-      g.beginPath()
-      g.arc(this.player.x, this.player.y, 26, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * this.reserve, false)
-      g.strokePath()
-      g.lineStyle(2, 0xd8cfa8, 0.22)
-      g.strokeCircle(this.player.x, this.player.y, this.reach())
     }
   }
 }

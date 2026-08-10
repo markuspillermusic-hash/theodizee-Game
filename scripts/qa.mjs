@@ -107,27 +107,26 @@ const BOTS = {
   }`,
   Level06: `(s) => (px, py) => {
     if (s.phase >= 4) return { x: 0, y: 0, active: false }
-    let tx = null, ty = null
+    let tx = null, ty = null, best = 1e9
     if (s.phase === 0) {
-      let bd = 1e9
       s.motes.forEach((m) => {
         if (m.taken || s.elapsedMs < m.bornAt) return
         const d = Math.hypot(m.x - px, m.y - py)
-        if (d < bd) { bd = d; tx = m.x; ty = m.y }
+        if (d < best) { best = d; tx = m.x; ty = m.y }
       })
     } else {
-      let best = 1e9
-      s.recipients.forEach((r) => {
-        if (r.gone || r.completed || r.beyond) return
-        if (s.eventIndex >= 3 && r.x > 1430) return
-        // Die schwaechsten zuerst, aber Weg mitrechnen.
-        const d = Math.hypot(r.x - px, r.y - py) + r.level * 500
-        if (d < best) { best = d; tx = r.x; ty = r.y }
+      s.souls.forEach((soul) => {
+        if (soul.gone || soul.closed || soul.beyond) return
+        if (s.eventIndex >= 3 && soul.x > 1460) return
+        // Schwache und bedrohte zuerst, Weg mitrechnen.
+        const d = Math.hypot(soul.x - px, soul.y - py)
+          + soul.level * 420 - s.darkAt(soul.x, soul.y) * 700
+        if (d < best) { best = d; tx = soul.x; ty = soul.y }
       })
     }
     if (tx === null) return { x: 0, y: 0, active: false }
     const dx = tx - px, dy = ty - py, d = Math.hypot(dx, dy) || 1
-    const a = d < 20 ? 0 : 1
+    const a = d < 24 ? 0 : 1
     return { x: dx / d * a, y: dy / d * a, active: a === 1 }
   }`,
 }

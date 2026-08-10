@@ -36,15 +36,15 @@ export const replayManifest: ReplayClipVariant[] = [
     caption: '[Pfoten folgen einer kühlen Spur. Kleine Körper warten. In der Ferne stehen harte Grenzen und ein verletzliches Licht.]',
   },
   {
-    id: 'echo-04-upper', levelId: 'level-04', srcMp4: 'assets/video/echoes/level-04/echo-04-upper.mp4',
-    durationMs: 27_000, playbackRate: 1, tags: ['upper', 'smoke', 'protection'],
-    caption: '[Rauch. Ein Kind folgt dem oberen Korridor. Eine vertraute Gestalt öffnet den Weg und bleibt hinter der Schwelle zurück.]',
-    conditions: [{ field: 'choices.route', operator: 'eq', value: 'upper' }],
+    id: 'echo-04-heil', levelId: 'level-04', srcMp4: 'assets/video/echoes/level-04/echo-04-heil.mp4',
+    durationMs: 27_000, playbackRate: 1, tags: ['schutz', 'heil'],
+    caption: '[Rauch und Funken. Eine Gestalt haelt sich vor ein Kind. Das Kind kommt durch die Schwelle, fast unversehrt; die Gestalt bleibt zurueck.]',
+    conditions: [{ field: 'metrics.throughHits', operator: 'lte', value: 4 }],
   },
   {
-    id: 'echo-04-lower', levelId: 'level-04', srcMp4: 'assets/video/echoes/level-04/echo-04-lower.mp4',
-    durationMs: 27_000, playbackRate: 1, tags: ['lower', 'smoke', 'protection'],
-    caption: '[Rauch. Ein Kind nimmt den tieferen Ausgang. Eine Hand gibt den letzten Impuls, dann schließt sich die Sicht.]',
+    id: 'echo-04-gezeichnet', levelId: 'level-04', srcMp4: 'assets/video/echoes/level-04/echo-04-gezeichnet.mp4',
+    durationMs: 27_000, playbackRate: 1, tags: ['schutz', 'gezeichnet'],
+    caption: '[Rauch und Funken. Eine Gestalt versucht, sich vor ein Kind zu halten. Das Kind kommt durch die Schwelle, gezeichnet; die Gestalt bleibt zurueck.]',
   },
   {
     id: 'echo-05-amber', levelId: 'level-05', srcMp4: 'assets/video/echoes/level-05/echo-05-amber.mp4',
@@ -56,5 +56,16 @@ export const replayManifest: ReplayClipVariant[] = [
     id: 'echo-05-violet', levelId: 'level-05', srcMp4: 'assets/video/echoes/level-05/echo-05-violet.mp4',
     durationMs: 35_000, playbackRate: 1.02, tags: ['violet', 'bond', 'search'],
     caption: '[Farbiges Leben, geteilte Wege, viele Versuche. Eine vertraute Melodie bleibt, obwohl ihr Ursprung verstummt.]',
+  },
+  {
+    id: 'echo-06-viele', levelId: 'level-06', srcMp4: 'assets/video/echoes/level-06/echo-06-viele.mp4',
+    durationMs: 30_000, playbackRate: 1, tags: ['leben', 'viele'],
+    caption: '[Ein Menschenleben im Zeitraffer. Viele Gesichter, die aufleuchten. Am Ende steht der Raum voller Lichter.]',
+    conditions: [{ field: 'choices.light', operator: 'eq', value: 'viele' }],
+  },
+  {
+    id: 'echo-06-wenige', levelId: 'level-06', srcMp4: 'assets/video/echoes/level-06/echo-06-wenige.mp4',
+    durationMs: 30_000, playbackRate: 1, tags: ['leben', 'wenige'],
+    caption: '[Ein Menschenleben im Zeitraffer. Wenige Gesichter, die aufleuchten. Am Ende stehen sie einzeln im Dunkeln, aber sie stehen.]',
   },
 ]

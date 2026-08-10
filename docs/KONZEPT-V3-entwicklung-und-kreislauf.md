@@ -139,6 +139,60 @@ Licht erscheint. Man wendet sich ihm zu.
 
 ---
 
+## 5a · Verbindliche Filmliste (Echo-Varianten)
+
+**Regel:** Vor jeder Mechanikänderung wird geprüft, ob die beiden Filme eines Abschnitts noch
+durch *ein eindeutiges Spielerverhalten* ausgewählt werden. Zwei Varianten pro Level, jede als
+eigener Film drehbar, ein Selektor. Mehr Varianten sind nicht finanzierbar, weniger machen das
+Replay beliebig.
+
+| Level | Film A | Film B | Selektor |
+|---|---|---|---|
+| 1 · Gras | zum Licht gestreckt | im Schatten geblieben | überwiegende Neigungsrichtung (`primaryDirection`) |
+| 2 · Zebra | mitten in der Herde | am Rand | `metrics.groupNearRatio` |
+| 3 · Löwin | warme Spur | kühle Spur | `choices.trail` |
+| 4 · Schützender | er kommt fast unversehrt durch | er kommt gezeichnet durch | `metrics.throughHits` ≤ 4 |
+| 5 · Bindung | Bernstein · Violett · Blau | — | `choices.preferredSignal` |
+| 6 · Leben | viele Lichter bleiben | wenige bleiben | `choices.light` |
+
+**Behobene Regression (2026-08-10):** Echo 4 wählte über `choices.route` aus — oben oder unten.
+In der Fassung „Dazwischen" setzt das aber der Schutzbefohlene mit seinem Weg, nicht die spielende
+Person. Der Wert war praktisch zufällig geworden. Der Selektor ist jetzt `metrics.throughHits`:
+wie viel bei ihm angekommen ist. Das ist zugleich das bessere Bild — zweimal dieselbe Szene, einmal
+kommt das Kind heil an, einmal gezeichnet.
+
+**Offen:** Level 1 wird beim Umbau auf Lichtwellen einen neuen Selektor brauchen; die überwiegende
+Neigungsrichtung verliert dort ihren Sinn. Vorschlag: Anteil der Lichtzeit.
+
+---
+
+## 5b · Wofür das Licht steht
+
+Entschieden am 2026-08-10, nach einem Fehlentwurf.
+
+Das Licht ist **weitergegebene Liebe**, nicht Lebenskraft. Es unterliegt keiner Erhaltung: Es wird
+nicht weniger, wenn man es teilt. Ein früherer Entwurf von Level 6 modellierte es als schwindenden
+Vorrat — das machte Liebe zu einem knappen Gut, das man verwaltet, und sagte damit genau das
+Falsche.
+
+Knapp ist nicht das Licht, **knapp ist der Mensch**: Lebenszeit, Körper, Reichweite. Man kann nicht
+an zwei Orten sein. Daraus kommt der ganze Widerstand — und zwar als Endlichkeit, nicht als Geiz.
+
+Daraus folgt für Level 6:
+
+- Weitergeben kostet nichts. Es **vergrössert** den eigenen Schein: mehr Reichweite, mehr Menschen
+  gleichzeitig erreichbar. Gutes tun macht grösser.
+- Wer entzündet ist, leuchtet selbst und hält die Finsternis mit zurück — auch ohne einen.
+- Die Finsternis ist **unpersönlich**: Kälte, Erlöschen. Keine bösartigen Menschen. Sobald Gestalten
+  einfach „die Bösen" wären, widerspräche das der Grundregel, dass jede Perspektive real ist — und
+  das Replay behauptete etwas, das dieses Spiel nicht behaupten darf.
+- Am Ende versagt der Körper, nicht das Werk: Die entzündeten Lichter halten weiter. Dann kommt das
+  grosse Licht, und alles, was je gebrannt hat, brennt wieder.
+
+Gezählt wird **Entzündet** — auch die, die später wieder erloschen sind.
+
+---
+
 ## 6 · Das Ende: das Gesamtbild als Erfahrung
 
 **Entscheidung vom 2026-08-09:** Das Spiel gibt das Gesamtbild. Es lässt den Schluss nicht offen.
