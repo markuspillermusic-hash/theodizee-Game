@@ -38,34 +38,40 @@ export const replayManifest: ReplayClipVariant[] = [
   {
     id: 'echo-04-heil', levelId: 'level-04', srcMp4: 'assets/video/echoes/level-04/echo-04-heil.mp4',
     durationMs: 27_000, playbackRate: 1, tags: ['schutz', 'heil'],
-    caption: '[Rauch und Funken. Eine Gestalt haelt sich vor ein Kind. Das Kind kommt durch die Schwelle, fast unversehrt; die Gestalt bleibt zurueck.]',
+    caption: '[Rauch. Bei jedem Funkenschlag schiebt sich ein Arm ins Bild. Dann eine helle Schwelle, ein Schatten geht hindurch. Der Arm folgt nicht.]',
     conditions: [{ field: 'metrics.throughHits', operator: 'lte', value: 4 }],
   },
   {
     id: 'echo-04-gezeichnet', levelId: 'level-04', srcMp4: 'assets/video/echoes/level-04/echo-04-gezeichnet.mp4',
     durationMs: 27_000, playbackRate: 1, tags: ['schutz', 'gezeichnet'],
-    caption: '[Rauch und Funken. Eine Gestalt versucht, sich vor ein Kind zu halten. Das Kind kommt durch die Schwelle, gezeichnet; die Gestalt bleibt zurueck.]',
+    caption: '[Rauch. Der Arm kommt oft zu spaet. Dann eine helle Schwelle, ein Schatten geht hindurch, langsamer, mit Asche auf der Schulter. Der Arm folgt nicht.]',
   },
   {
     id: 'echo-05-amber', levelId: 'level-05', srcMp4: 'assets/video/echoes/level-05/echo-05-amber.mp4',
-    durationMs: 35_000, playbackRate: 0.97, tags: ['amber', 'bond', 'stay'],
-    caption: '[Gemeinsames Lachen, ein Streit, eine Rückkehr. Am Ende bleibt ein Mensch ruhig bei einem vertrauten Gegenüber.]',
+    durationMs: 35_000, playbackRate: 1, tags: ['amber', 'fenster'],
+    caption: '[Nacht ueber einem Hof. Ein warmes Fenster blinkt, ein anderes antwortet. Dann antwortet es spaeter. Dann gar nicht mehr.]',
     conditions: [{ field: 'choices.preferredSignal', operator: 'eq', value: 'amber' }],
   },
   {
     id: 'echo-05-violet', levelId: 'level-05', srcMp4: 'assets/video/echoes/level-05/echo-05-violet.mp4',
-    durationMs: 35_000, playbackRate: 1.02, tags: ['violet', 'bond', 'search'],
-    caption: '[Farbiges Leben, geteilte Wege, viele Versuche. Eine vertraute Melodie bleibt, obwohl ihr Ursprung verstummt.]',
+    durationMs: 35_000, playbackRate: 1, tags: ['violet', 'fenster'],
+    caption: '[Nacht ueber einem Hof. Ein flackerndes Fenster blinkt, ein anderes antwortet. Dann antwortet es schwaecher. Dann gar nicht mehr.]',
+    conditions: [{ field: 'choices.preferredSignal', operator: 'eq', value: 'violet' }],
+  },
+  {
+    id: 'echo-05-blue', levelId: 'level-05', srcMp4: 'assets/video/echoes/level-05/echo-05-blue.mp4',
+    durationMs: 35_000, playbackRate: 1, tags: ['blue', 'fenster'],
+    caption: '[Nacht ueber einem Hof. Drueben brennt eine Kerze und antwortet. Dann steht sie still. Das eigene Fenster blinkt weiter.]',
   },
   {
     id: 'echo-06-viele', levelId: 'level-06', srcMp4: 'assets/video/echoes/level-06/echo-06-viele.mp4',
     durationMs: 30_000, playbackRate: 1, tags: ['leben', 'viele'],
-    caption: '[Ein Menschenleben im Zeitraffer. Viele Gesichter, die aufleuchten. Am Ende steht der Raum voller Lichter.]',
+    caption: '[Eine Hand neigt eine Flamme zur naechsten Kerze. Und die zur uebernaechsten. Am Ende ist der ganze Raum hell.]',
     conditions: [{ field: 'choices.light', operator: 'eq', value: 'viele' }],
   },
   {
     id: 'echo-06-wenige', levelId: 'level-06', srcMp4: 'assets/video/echoes/level-06/echo-06-wenige.mp4',
     durationMs: 30_000, playbackRate: 1, tags: ['leben', 'wenige'],
-    caption: '[Ein Menschenleben im Zeitraffer. Wenige Gesichter, die aufleuchten. Am Ende stehen sie einzeln im Dunkeln, aber sie stehen.]',
+    caption: '[Eine Hand neigt eine Flamme zur naechsten Kerze. Wenige Lichter, weit auseinander. Aber sie brennen, und der Raum ist nicht mehr ganz dunkel.]',
   },
 ]

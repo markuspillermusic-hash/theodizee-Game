@@ -22,6 +22,12 @@ public/assets/
   config/
 ```
 
+## Inhalt der Echos
+
+Was in den Clips zu sehen ist, steht in `docs/KONZEPT-echos-drehbuch.md`. Dort gilt für alle sechs
+Echos die Regel, die für Echo 1 schon in den Storyboard-Prompts steht: **nie die ganze Gestalt,
+kein Gesicht, kein Auge.** Nur Teile, Spuren, Licht und Schatten.
+
 ## Videoanforderungen
 
 - Format: H.264/AAC-freies MP4 als Primärdatei; optional WebM als Fallback
