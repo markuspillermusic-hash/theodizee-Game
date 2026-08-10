@@ -5,6 +5,7 @@ import { levels } from '../config/levels'
 import { GoalTracker } from '../systems/GoalTracker'
 import type { AssistanceLevel, Direction, LevelResult } from '../types'
 import { TimedLevelScene } from './TimedLevelScene'
+import { dust, glow, ground, self, vignette } from '../visuals'
 
 type SignalId = 'amber' | 'violet' | 'blue'
 
@@ -391,10 +392,10 @@ export class Level05State extends TimedLevelScene {
     const g = this.graphics
     g.clear()
     const warmth = this.phase === 1 ? Phaser.Math.Clamp(this.exchanges / this.exchangeTarget, 0, 1) : this.phase >= 2 ? 0.25 : 0
-    g.fillGradientStyle(0x08070c, 0x090811, Phaser.Display.Color.GetColor(
-      Math.round(18 + warmth * 14), Math.round(12 + warmth * 24), Math.round(20 + warmth * 18),
-    ), 0x08070b, 1)
-    g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
+    ground(g, 0x0a0910, Phaser.Display.Color.GetColor(
+      Math.round(20 + warmth * 16), Math.round(15 + warmth * 26), Math.round(24 + warmth * 20),
+    ))
+    dust(g, time, 42, 0xd9d2e4, 0.011)
 
     const partnerId = this.preferred
     this.signals().forEach((signal, index) => {
@@ -417,10 +418,7 @@ export class Level05State extends TimedLevelScene {
     }
 
     const stumble = this.stumbleMs > 0
-    g.fillStyle(0xf4eee3, stumble ? 0.5 : 0.96)
-    g.fillCircle(this.player.x, this.player.y, 11)
-    g.lineStyle(2, 0xf1dcc0, 0.4)
-    g.strokeCircle(this.player.x, this.player.y, 23 + Math.sin(time * 0.003) * 3)
+    self(g, this.player.x, this.player.y, time, 1, stumble ? 0.5 : 1)
     if (this.flash > 0) {
       g.lineStyle(5, 0xf6e6bc, this.flash * 0.6)
       g.strokeCircle(this.player.x, this.player.y, 36 + (1 - this.flash) * 42)
@@ -429,6 +427,7 @@ export class Level05State extends TimedLevelScene {
       g.strokeCircle(this.player.x, this.player.y, 44)
     }
 
+    vignette(g, 0.42)
     if (this.phase === 3) {
       const local = Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (15_000 * this.services.getTimeScale()), 0, 1)
       g.fillStyle(0x040307, local * 0.55)
@@ -469,8 +468,7 @@ export class Level05State extends TimedLevelScene {
     g: Phaser.GameObjects.Graphics, signal: RelationSignal, time: number, index: number, strength: number,
   ): void {
     const pulse = 1 + Math.sin(time * 0.003 + index * 1.7) * 0.16
-    g.fillStyle(signal.color, 0.09 * strength)
-    g.fillCircle(signal.x, signal.y, 58 * pulse)
+    glow(g, signal.x, signal.y, 150 * pulse, signal.color, 0.24 * strength)
     g.lineStyle(3, signal.color, 0.66 * strength)
     if (signal.shape === 'circle') g.strokeCircle(signal.x, signal.y, 22 * pulse)
     else if (signal.shape === 'diamond') g.strokePoints([

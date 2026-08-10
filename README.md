@@ -186,6 +186,19 @@ bleibt die laufende Sitzung im Arbeitsspeicher spielbar. „Neuer Durchlauf“ l
 - Echo-Clips und Auswahlbedingungen: `src/game/config/replayManifest.ts`
 - prozedurale Audiomotive: `src/game/config/audioManifest.ts`
 
+## Bildsystem
+
+`src/game/visuals.ts` ist die gemeinsame Grundlage aller Abschnitte: eine Palette, weiches Licht mit
+echter Abnahme, die immer gleiche Lichtgestalt der spielenden Figur, Gefahrenfelder, treibender Staub
+und Vignette.
+
+Phaser-Grafiken kennen keinen Radialverlauf. Weiches Licht entsteht deshalb aus konzentrischen
+Kreisen mit quadratisch abnehmender Deckkraft; die Zahl der Schichten richtet sich nach dem Radius,
+sonst entstehen sichtbare Ringe.
+
+Die wichtigste Regel: **Die spielende Figur sieht in allen sechs Abschnitten gleich aus.** Dasselbe
+Licht geht durch alle Gestalten — der Kreislauf, sichtbar in einer einzigen Form.
+
 ## Architektur
 
 - Phaser-Szenen bilden die explizite Zustandsmaschine.

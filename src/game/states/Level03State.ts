@@ -5,6 +5,7 @@ import { levels } from '../config/levels'
 import { GoalTracker } from '../systems/GoalTracker'
 import type { AssistanceLevel, Direction, LevelResult } from '../types'
 import { TimedLevelScene } from './TimedLevelScene'
+import { dust, ground, hazard as hazardField, self, vignette } from '../visuals'
 
 type Trail = 'warm' | 'cool'
 
@@ -307,7 +308,8 @@ export class Level03State extends TimedLevelScene {
   private drawWorld(time: number, progress: number): void {
     const g = this.graphics
     g.clear()
-    this.drawBackdrop(g, 0x070705, 0x17110a)
+    ground(g, 0x0b0a08, 0x1b1510)
+    dust(g, time, 44, 0xe0d3b6, 0.014)
     const assistance = this.hintManager.getLevel()
 
     if (this.phase === 0) {
@@ -322,10 +324,7 @@ export class Level03State extends TimedLevelScene {
       g.lineStyle(5, 0xffdda0, 0.14 + this.cargo * 0.42)
       g.strokeCircle(this.player.x, this.player.y, 32 + this.cargo * 14 + Math.sin(time * 0.005) * 5)
     }
-    g.fillStyle(0xf4ddac, 0.96)
-    g.fillCircle(this.player.x, this.player.y, this.phase === 0 ? 8 : 12)
-    g.lineStyle(3, 0xe0ad64, 0.72)
-    g.strokeCircle(this.player.x, this.player.y, 22)
+    self(g, this.player.x, this.player.y, time, this.phase === 0 ? 0.85 : 1)
 
     const setback = this.goal.setbackFlash
     if (setback > 0) {
@@ -333,6 +332,7 @@ export class Level03State extends TimedLevelScene {
       g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
     }
 
+    vignette(g, 0.42)
     if (this.phase >= 3) this.drawOutcome(g, progress)
   }
 
@@ -366,11 +366,7 @@ export class Level03State extends TimedLevelScene {
     g.lineBetween(360, 790, 1560, 830)
 
     this.getHazards(time).forEach((hazard, index) => {
-      const alpha = assistance >= 1 ? 0.24 : 0.14
-      g.fillStyle(0x3a1d13, alpha)
-      g.fillCircle(hazard.x, hazard.y, hazard.radius)
-      g.lineStyle(assistance >= 2 ? 4 : 2, 0xc97b49, alpha + 0.12)
-      g.strokeCircle(hazard.x, hazard.y, hazard.radius + Math.sin(time * 0.003 + index) * 8)
+      hazardField(g, hazard.x, hazard.y, hazard.radius, time, assistance >= 1 ? 1.15 : 0.85, index * 1.7)
     })
 
     if (!this.carrying) {

@@ -5,6 +5,7 @@ import { levels } from '../config/levels'
 import { GoalTracker } from '../systems/GoalTracker'
 import type { AssistanceLevel, Direction, LevelResult } from '../types'
 import { TimedLevelScene } from './TimedLevelScene'
+import { dust, glow, ground, palette, vignette } from '../visuals'
 
 type MemoryKind = 'licht' | 'gras' | 'last' | 'gehueteter' | 'ruf'
 
@@ -276,10 +277,12 @@ export class Level06State extends TimedLevelScene {
     const g = this.graphics
     g.clear()
     const dim = Phaser.Math.Clamp(this.layersLost / 4, 0, 1)
-    g.fillStyle(Phaser.Display.Color.GetColor(
-      Math.round(23 - dim * 17), Math.round(20 - dim * 15), Math.round(31 - dim * 24),
-    ), 1)
-    g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
+    ground(g, Phaser.Display.Color.GetColor(
+      Math.round(15 - dim * 11), Math.round(15 - dim * 11), Math.round(24 - dim * 18),
+    ), Phaser.Display.Color.GetColor(
+      Math.round(24 - dim * 18), Math.round(20 - dim * 15), Math.round(26 - dim * 20),
+    ))
+    dust(g, time, 40, 0xd6d2e0, 0.008)
 
     this.drawMemories(g, time)
     this.drawLayers(g)
@@ -290,6 +293,7 @@ export class Level06State extends TimedLevelScene {
     const field = Phaser.Math.Linear(880, 250, dim)
     g.lineStyle(3, 0xd9d7ca, 0.07)
     g.strokeCircle(this.player.x, this.player.y, field)
+    vignette(g, 0.38)
     const edge = Phaser.Math.Clamp(dim * 0.72, 0, 0.9)
     g.fillStyle(0x000000, edge)
     g.fillRect(0, 0, GAME_WIDTH, Math.max(0, (GAME_HEIGHT - field * 1.15) / 2))
@@ -356,8 +360,7 @@ export class Level06State extends TimedLevelScene {
   ): void {
     const pulse = 1 + Math.sin(time * 0.002 + index) * 0.1
     const { x, y, color } = memory
-    g.fillStyle(color, alpha * 0.12)
-    g.fillCircle(x, y, 48 * pulse)
+    glow(g, x, y, 128 * pulse, color, alpha * 0.3)
     switch (memory.kind) {
       case 'licht': {
         g.fillStyle(color, alpha * 0.5)
@@ -407,10 +410,7 @@ export class Level06State extends TimedLevelScene {
   private drawLight(g: Phaser.GameObjects.Graphics, time: number): void {
     const grow = Phaser.Math.Clamp((this.elapsedMs - this.lightAt) / (4_000 * this.timeScale()), 0, 1)
     const ready = Phaser.Math.Clamp(this.alignMs / (ALIGN_REQUIRED_MS * this.timeScale()), 0, 1)
-    for (let ring = 4; ring >= 0; ring -= 1) {
-      g.fillStyle(0xe8b969, (0.03 + ready * 0.05) * (1 + ring * 0.2))
-      g.fillCircle(LIGHT_X, LIGHT_Y, (60 + ring * 70) * grow)
-    }
+    glow(g, LIGHT_X, LIGHT_Y, 720 * grow, palette.licht, 0.24 + ready * 0.24)
     g.fillStyle(0xf4f8d8, 0.5 + ready * 0.5)
     g.fillCircle(LIGHT_X, LIGHT_Y, 10 + Math.sin(time * 0.002) * 2 + ready * 8)
     if (ready > 0.02) {
@@ -421,6 +421,7 @@ export class Level06State extends TimedLevelScene {
 
   private drawPlayer(g: Phaser.GameObjects.Graphics, time: number, dim: number): void {
     const radius = 10 - dim * 3
+    glow(g, this.player.x, this.player.y, 72, palette.ichWarm, (1 - dim * 0.5) * 0.22)
     g.fillStyle(0xf3f0e6, 1 - dim * 0.35)
     g.fillCircle(this.player.x, this.player.y, radius)
     // Die Blickrichtung ist die letzte Fähigkeit und muss deshalb sichtbar sein.

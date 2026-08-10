@@ -123,6 +123,11 @@ export class QaHarness {
         pressPending = Boolean(value.press)
         return { x: value.x, y: value.y, active: value.active ?? (value.x !== 0 || value.y !== 0) }
       }
+      // Level 1 hat nur eine Achse und benutzt einen anderen Eingabemanager.
+      if ('getAxis' in manager) {
+        manager.getAxis = () => (botFn ? botFn(0, 0).x : 0)
+        manager.getPointerTarget = () => null
+      }
       manager.justActionDown = () => {
         const pressed = pressPending
         pressPending = false

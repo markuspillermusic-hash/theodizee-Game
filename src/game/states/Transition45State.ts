@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { GAME_HEIGHT, GAME_WIDTH } from '../config/gameConfig'
 import { BaseScene } from './BaseScene'
+import { dust, glowEllipse, ground, palette, vignette } from '../visuals'
 
 const DURATION_MS = 6_400
 
@@ -67,17 +68,14 @@ export class Transition45State extends BaseScene {
     const playerX = 1_430 - shift * 1.4
     const brightness = Phaser.Math.Easing.Quadratic.In(local)
 
-    g.fillGradientStyle(0x0a0908, 0x0a0908, 0x1c1512, 0x1c1512, 1)
-    g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
+    ground(g, 0x0b0a09, 0x1c1613)
+    dust(g, this.elapsedMs, 40, 0xcfc6bd, 0.02)
 
     // Die Schwelle, jetzt von der anderen Seite
     const thresholdX = 1_580 - shift
-    for (let halo = 3; halo >= 0; halo -= 1) {
-      g.fillStyle(0xe8c98a, (0.06 + brightness * 0.12) * (1 + halo * 0.4))
-      g.fillRect(thresholdX - 46 - halo * 26, 280 - halo * 22, 92 + halo * 52, 540 + halo * 44)
-    }
-    g.fillStyle(0xf3e6c4, 0.4 + brightness * 0.5)
-    g.fillRect(thresholdX - 40, 280, 84, 540)
+    glowEllipse(g, thresholdX, 550, 460 + brightness * 280, 900, palette.licht, 0.3 + brightness * 0.34)
+    g.fillStyle(0xf6ecd0, 0.45 + brightness * 0.5)
+    g.fillRect(thresholdX - 34, 296, 72, 508)
 
     // Der Zurückbleibende: verliert Licht, bleibt aber bis zuletzt sichtbar
     const leftBehind = Phaser.Math.Clamp(1 - local * 1.35, 0, 1)
@@ -102,6 +100,7 @@ export class Transition45State extends BaseScene {
     g.fillCircle(wardX, wardY, 8 * grow)
 
     // Die Helligkeit übernimmt das Bild — in genau den Ton, aus dem Level 5 wieder aufblendet.
+    vignette(g, 0.4)
     const wash = Phaser.Math.Clamp((local - 0.62) / 0.38, 0, 1)
     g.fillStyle(0xe8ce9e, Phaser.Math.Easing.Quadratic.In(wash))
     g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)

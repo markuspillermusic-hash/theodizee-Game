@@ -6,6 +6,7 @@ import { levels } from '../config/levels'
 import { HintManager } from '../systems/HintManager'
 import { InputManager } from '../systems/InputManager'
 import type { AssistanceLevel, Direction } from '../types'
+import { dust, glow, glowEllipse, ground, palette, vignette } from '../visuals'
 import { BaseScene } from './BaseScene'
 
 interface WindParticle {
@@ -250,43 +251,27 @@ export class Level01State extends BaseScene {
     const g = this.graphics
     g.clear()
     const night = 1 - this.lightVisibility
-    g.fillGradientStyle(0x020806, 0x020806, Phaser.Display.Color.GetColor(4, Math.round(19 - night * 11), Math.round(13 - night * 8)), 0x020806, 1)
-    g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
+    ground(g, 0x0b1010, Phaser.Display.Color.GetColor(9, Math.round(22 - night * 10), Math.round(16 - night * 7)))
 
     const lightX = GAME_WIDTH / 2 + this.lightCenter * 590
     const radiusScale = this.lightRadius / 0.34
-    const lightVeils = [
-      { width: 760, height: 850, dx: -54, dy: 34, alpha: 0.026 },
-      { width: 610, height: 720, dx: 42, dy: -26, alpha: 0.031 },
-      { width: 470, height: 585, dx: -22, dy: 18, alpha: 0.038 },
-      { width: 330, height: 430, dx: 35, dy: 5, alpha: 0.047 },
-      { width: 185, height: 275, dx: -10, dy: -16, alpha: 0.065 },
-    ]
-    lightVeils.forEach((veil, index) => {
-      const driftX = Math.sin(time * (0.00018 + index * 0.000025) + index * 1.7) * (18 - index * 2)
-      const driftY = Math.cos(time * (0.00015 + index * 0.00002) + index * 1.3) * (13 - index)
-      g.fillStyle(gameConfig.colors.light, this.lightVisibility * veil.alpha)
-      g.fillEllipse(
-        lightX + (veil.dx + driftX) * radiusScale,
-        this.lightY + (veil.dy + driftY) * radiusScale,
-        veil.width * radiusScale,
-        veil.height * radiusScale,
-      )
-    })
+    // Das Licht ist die Hauptfigur dieses Abschnitts und muss auch so aussehen: ein warmer,
+    // weicher Körper mit echter Abnahme statt fünf fast unsichtbarer Schleier.
+    glowEllipse(g, lightX, this.lightY, 1_180 * radiusScale, 1_320 * radiusScale, palette.licht, 0.3 * this.lightVisibility)
+    glowEllipse(g, lightX, this.lightY, 420 * radiusScale, 520 * radiusScale, 0xfff0c8, 0.24 * this.lightVisibility)
 
-    g.lineStyle(1.5, 0x8eb3a0, 0.12)
-    this.wind.forEach((particle) => g.lineBetween(particle.x, particle.y, particle.x + particle.length, particle.y - 4))
-    for (let index = 0; index < 8; index += 1) {
-      const x = 150 + index * 245 + Math.sin(index * 2.1) * 48
-      const y = 930 - ((time * 0.024 + index * 105) % 360)
-      g.fillStyle(gameConfig.colors.moisture, 0.06 + night * 0.16)
-      g.fillCircle(x, y, 3 + (index % 3))
-    }
+    dust(g, time, 54, 0xcfe0cf, 0.02)
+    // Wind: sichtbare Striche, die in Böen anziehen.
+    this.wind.forEach((particle) => {
+      g.lineStyle(1.6, 0x9fc4ae, 0.05 + (particle.speed / 0.09) * 0.13)
+      g.lineBetween(particle.x, particle.y, particle.x + particle.length, particle.y - 4)
+    })
 
     this.drawDisturbance(g, progress)
     this.drawSwiftSignal(g, progress)
     this.drawTetheredSignal(g, time, progress)
 
+    vignette(g, 0.42)
     if (progress > 0.91) {
       const veil = Phaser.Math.Easing.Sine.In((progress - 0.91) / 0.09)
       g.fillStyle(0x010302, veil * 0.96)
@@ -305,8 +290,8 @@ export class Level01State extends BaseScene {
     const visibility = this.getSignalVisibility(progress, tipX, tipY)
     if (visibility <= 0.01) return
     const lightQuality = this.getLightQuality()
-    const glow = Phaser.Math.Linear(0.46, 1, lightQuality)
-    const width = 2 + this.growth * 3.2
+    const glowStrength = Phaser.Math.Linear(0.5, 1, lightQuality)
+    const width = 3.4 + this.growth * 4.6
     const bend = tipX - rootX
     const sway = Math.sin(time * 0.00165) * (4 + normalizedGrowth * 11)
     const lowerX = rootX + bend * 0.18 - sway * 0.35
@@ -314,24 +299,23 @@ export class Level01State extends BaseScene {
     const upperX = rootX + bend * 0.6 + sway
     const upperY = Phaser.Math.Linear(rootY, tipY, 0.73)
 
-    g.lineStyle(8 + this.growth * 8, 0x173226, 0.34 * visibility)
+    g.lineStyle(11 + this.growth * 10, 0x16281f, 0.5 * visibility)
     g.beginPath()
     g.moveTo(rootX, rootY)
     g.lineTo(lowerX, lowerY)
     g.lineTo(upperX, upperY)
     g.lineTo(tipX, tipY)
     g.strokePath()
-    g.lineStyle(width, gameConfig.colors.growth, 0.72 * visibility)
+    g.lineStyle(width, palette.halm, 0.94 * visibility)
     g.beginPath()
     g.moveTo(rootX, rootY)
     g.lineTo(lowerX, lowerY)
     g.lineTo(upperX, upperY)
     g.lineTo(tipX, tipY)
     g.strokePath()
-    g.fillStyle(gameConfig.colors.light, 0.08 * glow * visibility)
-    g.fillCircle(tipX, tipY, 20 + this.growth * 18)
-    g.fillStyle(0xf4f8d8, glow * visibility)
-    g.fillCircle(tipX, tipY, 4.5 + this.growth * 3)
+    glow(g, tipX, tipY, (58 + this.growth * 54) * (0.6 + lightQuality * 0.7), palette.licht, 0.34 * glowStrength * visibility)
+    g.fillStyle(0xfff6d6, glowStrength * visibility)
+    g.fillCircle(tipX, tipY, 6 + this.growth * 4)
   }
 
   private getSignalVisibility(progress: number, tipX: number, tipY: number): number {

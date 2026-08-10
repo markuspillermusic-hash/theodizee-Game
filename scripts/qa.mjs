@@ -49,6 +49,45 @@ shots.sort((a, b) => a - b)
  * mit ihrem vollständigen Zustand — nur so kann ein Bot auf Glut oder Rufe reagieren.
  */
 const BOTS = {
+  Level01: `(s) => () => {
+    const reach = Math.max(0.25, Math.min(0.98, 0.2 + s.growth * 1.05))
+    const want = s.lightCenter / reach
+    const diff = want - s.position
+    return { x: Math.abs(diff) < 0.02 ? 0 : Math.sign(diff), y: 0, active: true }
+  }`,
+  Level02: `(s) => (px, py) => {
+    let best = null, bd = 1e9
+    s.resources.forEach((r) => {
+      if (!r.active) return
+      const d = Math.hypot(r.x - px, r.y - py)
+      if (d < bd) { bd = d; best = r }
+    })
+    if (s.phase >= 5) { return { x: -1, y: 0, active: true } }
+    if (!best) return { x: 0, y: 0, active: false }
+    const dx = best.x - px, dy = best.y - py, d = Math.hypot(dx, dy) || 1
+    return { x: dx / d, y: dy / d, active: true }
+  }`,
+  Level03: `(s) => (px, py) => {
+    const SLOTS = [{x:1590,y:300},{x:1600,y:575},{x:1580,y:840}]
+    let tx = px, ty = py
+    if (s.phase === 0) {
+      const local = Math.min(1, s.elapsedMs / 20000)
+      let b = null
+      for (let i = 0; i < 4; i += 1) {
+        if (s.resolvedPulses.has(i)) continue
+        const p = s.getIncomingPulse(local, i)
+        if (p.flight < 0 || p.flight > 1) continue
+        if (!b || p.flight > b.flight) b = p
+      }
+      if (b) { tx = b.x; ty = b.y }
+    } else if (s.phase === 1) {
+      if (!s.carrying) { const q = SLOTS[s.sourceIndex]; tx = q.x; ty = q.y }
+      else { const r = s.receivers[0].need <= s.receivers[1].need ? s.receivers[0] : s.receivers[1]; tx = r.x; ty = r.y }
+    }
+    const dx = tx - px, dy = ty - py, d = Math.hypot(dx, dy) || 1
+    const a = d < 12 ? 0 : 1
+    return { x: dx / d * a, y: dy / d * a, active: a === 1 }
+  }`,
   Level04: `(s) => (px, py) => {
     const p = s.embers.filter(e => !e.resolved && e.spawnedAt <= s.elapsedMs)
       .sort((a, b) => a.impactAt - b.impactAt)[0]

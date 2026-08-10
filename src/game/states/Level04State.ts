@@ -5,6 +5,7 @@ import { levels } from '../config/levels'
 import { GoalTracker } from '../systems/GoalTracker'
 import type { AssistanceLevel, Direction, LevelResult } from '../types'
 import { TimedLevelScene } from './TimedLevelScene'
+import { dust, glowEllipse, ground, palette, self, vignette } from '../visuals'
 
 type Route = 'upper' | 'lower'
 
@@ -312,30 +313,21 @@ export class Level04State extends TimedLevelScene {
   private drawWorld(time: number): void {
     const g = this.graphics
     g.clear()
-    this.drawBackdrop(g, 0x0a0908, 0x1a1512)
+    ground(g, 0x0b0a09, 0x1c1613)
     const assistance = this.assistance()
 
     // Rauch bleibt Atmosphäre. Die Gefahr in diesem Level ist die Glut, und die ist immer sichtbar.
-    for (let index = 0; index < 16; index += 1) {
-      const x = (index * 233 + time * 0.012) % (GAME_WIDTH + 320) - 160
-      const y = 180 + ((index * 149) % 680) + Math.sin(time * 0.0005 + index) * 46
-      g.fillStyle(0xb5aaa5, 0.008 + (index % 3) * 0.004)
-      g.fillCircle(x, y, 90 + (index % 4) * 46)
-    }
+    dust(g, time, 40, 0xcfc6bd, 0.02)
 
     // Die Schwelle ist warmes Licht, kein Bauteil. Sie liegt unterhalb der Anzeige rechts oben.
     const farewell = this.phase === 1
       ? Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (FAREWELL_MS * this.services.getTimeScale()), 0, 1)
       : 0
     const glow = 0.2 + Math.sin(time * 0.003) * 0.05 + farewell * 0.5
-    for (let halo = 3; halo >= 0; halo -= 1) {
-      g.fillStyle(0xe8c98a, glow * 0.09 * (1 + halo * 0.4))
-      g.fillRect(EXIT_X - 46 - halo * 26, 280 - halo * 22, 92 + halo * 52, 540 + halo * 44)
-    }
-    g.fillStyle(0xf3e6c4, Phaser.Math.Clamp(glow, 0, 0.92))
-    g.fillRect(EXIT_X - 40, 280, 84, 540)
-    g.lineStyle(3, 0xf6efd8, 0.5 + farewell * 0.4)
-    g.strokeRect(EXIT_X - 40, 280, 84, 540)
+    glowEllipse(g, EXIT_X, 550, 460, 900, palette.licht, 0.3 + farewell * 0.32)
+    g.fillStyle(0xf6ecd0, Phaser.Math.Clamp(glow, 0, 0.94))
+    g.fillRect(EXIT_X - 34, 296, 72, 508)
+    glowEllipse(g, EXIT_X, 550, 150, 560, 0xfff6dd, 0.34 + farewell * 0.3)
 
     g.lineStyle(1, 0xcfd6cb, 0.14)
     g.beginPath()
@@ -378,11 +370,10 @@ export class Level04State extends TimedLevelScene {
       g.lineStyle(2, 0xe0c88e, 0.18 + own * 0.26)
       g.strokeCircle(this.player.x, this.player.y, shield)
     }
-    g.fillStyle(stagger ? 0xb99a72 : 0xf0e9d9, Phaser.Math.Clamp(0.96 - farewell * 0.86, 0.08, 0.96))
-    g.fillCircle(this.player.x, this.player.y, 12 - farewell * 5)
-    g.lineStyle(3, 0xe0c88e, Phaser.Math.Clamp(0.72 - farewell * 0.68, 0.04, 0.72))
-    g.strokeCircle(this.player.x, this.player.y, 24)
+    self(g, this.player.x, this.player.y, time, stagger ? 0.82 : 1,
+      Phaser.Math.Clamp(1 - farewell * 0.9, 0.08, 1))
 
+    vignette(g, 0.44)
     const setback = this.goal.setbackFlash
     if (setback > 0) {
       g.fillStyle(0x2c1712, setback * 0.34)

@@ -4,6 +4,7 @@ import { GAME_HEIGHT, GAME_WIDTH } from '../config/gameConfig'
 import { levels } from '../config/levels'
 import type { AssistanceLevel, Direction, LevelResult } from '../types'
 import { TimedLevelScene } from './TimedLevelScene'
+import { dust, ground, vignette } from '../visuals'
 
 interface ResourceSignal {
   x: number
@@ -489,7 +490,8 @@ export class Level02State extends TimedLevelScene {
   private drawWorld(time: number): void {
     const g = this.graphics
     g.clear()
-    this.drawBackdrop(g, 0x050806, 0x17120c)
+    ground(g, 0x0a0d0b, 0x1a150f)
+    dust(g, time, 46, 0xd6dcc4, 0.016)
 
     for (let band = 0; band < 10; band += 1) {
       const y = 245 + band * 67 + Math.sin(time * 0.00036 + band * 0.8) * 11
@@ -518,6 +520,7 @@ export class Level02State extends TimedLevelScene {
     }
 
     if (this.phase === 1 || this.phase === 3 || this.phase >= 5) this.drawThreat(g, time)
+    vignette(g, 0.4)
     if (this.phase === 6) {
       const local = Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (2_600 * this.services.getTimeScale()), 0, 1)
       g.fillStyle(0x050302, local * 0.82)
