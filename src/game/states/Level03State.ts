@@ -23,6 +23,7 @@ const KILL_X = 1_720
 const SNATCH_RANGE = 196
 const DEFEND_SPEED = 1.1
 const WAVE_INTERVAL_MS = 4_200
+const FENCE_X = 1_420
 
 /**
  * Versorge · „Heimbringen".
@@ -52,6 +53,8 @@ export class Level03State extends TimedLevelScene {
   private trail: Trail | null = null
   private cubNeed = 0.9
   private delivered = 0
+  private needAtDelivery = 0
+  private crossedFence = false
   private defendedMs = 0
   private phase = 0
   private phaseStartedAt = 0
@@ -76,6 +79,8 @@ export class Level03State extends TimedLevelScene {
     this.trail = null
     this.cubNeed = 0.9
     this.delivered = 0
+    this.needAtDelivery = 0
+    this.crossedFence = false
     this.defendedMs = 0
     this.phase = 0
     this.phaseStartedAt = 0
@@ -132,7 +137,8 @@ export class Level03State extends TimedLevelScene {
         delivered: this.delivered,
         cargoStart: CARGO_START,
         lostPieces: CARGO_START - this.delivered,
-        cubNeed: this.cubNeed,
+        cubNeed: this.needAtDelivery,
+        crossedFence: this.crossedFence ? 1 : 0,
         defendedRatio: this.elapsedMs ? this.defendedMs / this.elapsedMs : 0,
       },
     }
@@ -140,7 +146,7 @@ export class Level03State extends TimedLevelScene {
 
   /** Bewertet wird, was ankommt — und in welchem Zustand die Jungen sind. */
   private homeGrade(): 'knapp' | 'solide' | 'stark' {
-    const score = this.delivered / CARGO_START * 0.7 + this.cubNeed * 0.3
+    const score = this.delivered / CARGO_START * 0.7 + this.needAtDelivery / 0.82 * 0.3
     if (score >= 0.86) return 'stark'
     if (score >= 0.62) return 'solide'
     return 'knapp'
@@ -166,34 +172,61 @@ export class Level03State extends TimedLevelScene {
         this.phase = 1
         this.phaseStartedAt = this.elapsedMs
         this.delivered = this.cargo
-        this.cubNeed = Phaser.Math.Clamp(this.cubNeed + this.delivered * 0.035, 0, 1)
+        // Eine Lieferung füllt nie ganz auf. Das ist der Grund, warum es weitergeht.
+        this.cubNeed = Phaser.Math.Clamp(this.cubNeed + this.delivered * 0.035, 0, 0.82)
+        this.needAtDelivery = this.cubNeed
         this.goal.setValue(STAGE_TARGET)
         this.sparks.emit(DEN_X, 560, palette.licht, 220, 1_100)
-        this.services.ui.setInstruction('')
+        this.services.ui.setInstruction('Sie fressen. Es reicht nicht.')
         this.services.audio.playMotif('group', 0.2)
       }
       return
     }
-    if (this.phase === 1 && this.elapsedMs - this.phaseStartedAt >= 6_000 * scale) {
-      this.phase = 2
-      this.phaseStartedAt = this.elapsedMs
-      this.services.ui.setInstruction('')
-      this.services.ui.setHint('')
-      this.services.audio.pulse(58, 0.09)
+    if (this.phase === 1) {
+      this.cubNeed = Phaser.Math.Clamp(this.cubNeed - (delta / scale) * 0.000021, 0, 1)
+      if (this.elapsedMs - this.phaseStartedAt >= 5_500 * scale) {
+        this.phase = 2
+        this.phaseStartedAt = this.elapsedMs
+        this.goal.relabel('Nochmal', 1)
+        this.goal.setValue(0)
+        this.goal.resetBuffer(0)
+        this.services.ui.setInstruction('Geh wieder los.')
+        this.services.ui.setHint('Das Nächste liegt weiter draußen.')
+        this.services.audio.playMotif('care', 0.16)
+      }
       return
     }
-    if (this.phase === 2 && this.elapsedMs - this.phaseStartedAt >= 7_000 * scale) this.finishLevel()
+    if (this.phase === 2) {
+      this.cubNeed = Phaser.Math.Clamp(this.cubNeed - (delta / scale) * 0.000021, 0, 1)
+      // Draußen steht ein Zaun. Dahinter liegt das Nächste. Man fragt nicht, was es ist.
+      if (this.player.x >= FENCE_X + 40) {
+        this.crossedFence = true
+        this.phase = 3
+        this.phaseStartedAt = this.elapsedMs
+        this.goal.setValue(1)
+        this.services.ui.setInstruction('')
+        this.services.ui.setHint('')
+        this.services.audio.pulse(58, 0.09)
+      } else if (this.elapsedMs - this.phaseStartedAt >= 16_000 * scale) {
+        this.phase = 3
+        this.phaseStartedAt = this.elapsedMs
+        this.services.ui.setInstruction('')
+        this.services.ui.setHint('')
+      }
+      return
+    }
+    if (this.phase === 3 && this.elapsedMs - this.phaseStartedAt >= 7_000 * scale) this.finishLevel()
   }
 
   private updatePlayer(delta: number): void {
-    if (this.phase > 0) {
+    if (this.phase === 1 || this.phase >= 3) {
       this.velocity.scale(0.9)
       return
     }
     const input = this.inputManager.getVector(this.player.x, this.player.y)
     const frameScale = Phaser.Math.Clamp(delta / 16.667, 0.4, 2.4)
     // Je mehr man noch trägt, desto schwerer geht es.
-    const load = this.cargo / CARGO_START
+    const load = this.phase === 2 ? 0 : this.cargo / CARGO_START
     const power = Phaser.Math.Linear(0.66, 0.3, load)
     if (input.active) {
       this.velocity.x += input.x * power * frameScale
@@ -203,7 +236,7 @@ export class Level03State extends TimedLevelScene {
     }
     const maxSpeed = Phaser.Math.Linear(3.6, 1.8, load)
     this.velocity.scale(Math.pow(0.88, frameScale)).limit(maxSpeed)
-    this.player.x = Phaser.Math.Clamp(this.player.x + this.velocity.x * frameScale, DEN_X, KILL_X)
+    this.player.x = Phaser.Math.Clamp(this.player.x + this.velocity.x * frameScale, DEN_X, this.phase === 2 ? FENCE_X + 60 : KILL_X)
     this.player.y = Phaser.Math.Clamp(this.player.y + this.velocity.y * frameScale, 250, 880)
 
     if (!this.trail && this.player.x < 1_380) this.trail = this.player.y < 560 ? 'warm' : 'cool'
@@ -345,6 +378,11 @@ export class Level03State extends TimedLevelScene {
     this.sparks.draw(g)
 
     if (this.phase >= 2) this.drawFence(g)
+    if (this.phase === 2) {
+      glowEllipse(g, FENCE_X + 210, 560, 300, 260, palette.licht, 0.2)
+      g.fillStyle(0xf6dda0, 0.85)
+      g.fillCircle(FENCE_X + 210, 560, 13)
+    }
     vignette(g, 0.42)
   }
 
@@ -369,16 +407,22 @@ export class Level03State extends TimedLevelScene {
   }
 
   /** Das Ende der Löwin: harte senkrechte Linien und ein Licht, das nicht zur Landschaft gehört. */
+  /** Die Grenze des Menschengebiets. In Phase 2 steht sie nur da; erst danach geht das Licht an. */
   private drawFence(g: Phaser.GameObjects.Graphics): void {
-    const local = Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (7_000 * this.timeScale()), 0, 1)
-    for (let x = 1_180; x < GAME_WIDTH + 120; x += 78) {
-      g.lineStyle(4, 0xb8c1bd, 0.1 + local * 0.4)
-      g.lineBetween(x, 140, x, GAME_HEIGHT - 60)
+    const lit = this.phase >= 3
+      ? Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (7_000 * this.timeScale()), 0, 1)
+      : 0
+    for (let y = 150; y < GAME_HEIGHT - 60; y += 46) {
+      g.lineStyle(3, 0xb8c1bd, 0.16 + lit * 0.42)
+      g.lineBetween(FENCE_X, y, FENCE_X + 26, y + 26)
     }
-    glowEllipse(g, 1_640, 520, 900 * local, 700 * local, 0xe9f2ff, 0.3 * local)
-    g.fillStyle(0xf4f8ff, 0.5 + local * 0.45)
-    g.fillCircle(1_640, 520, 16 + local * 22)
-    g.fillStyle(0x000000, Math.max(0, local - 0.68) * 3.1)
+    g.lineStyle(4, 0xb8c1bd, 0.24 + lit * 0.5)
+    g.lineBetween(FENCE_X, 150, FENCE_X, GAME_HEIGHT - 60)
+    if (lit <= 0) return
+    glowEllipse(g, 1_700, 520, 1_100 * lit, 820 * lit, 0xe9f2ff, 0.34 * lit)
+    g.fillStyle(0xf4f8ff, 0.5 + lit * 0.45)
+    g.fillCircle(1_700, 520, 16 + lit * 24)
+    g.fillStyle(0x000000, Math.max(0, lit - 0.68) * 3.1)
     g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
   }
 }

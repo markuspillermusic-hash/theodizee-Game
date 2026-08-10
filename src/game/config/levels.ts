@@ -7,8 +7,8 @@ import type { LevelConfig } from '../types'
  */
 export const levels: Record<string, LevelConfig> = {
   level01: {
-    id: 'level-01', title: 'Bleibe', expectedDurationMs: 66_000, storyDurationMs: 82_000,
-    maximumDurationMs: 98_000, hintTimesMs: [22_000, 46_000, 72_000], echoId: 'echo-01', nextState: 'Echo01',
+    id: 'level-01', title: 'Bleibe', expectedDurationMs: 60_000, storyDurationMs: 76_000,
+    maximumDurationMs: 92_000, hintTimesMs: [22_000, 46_000, 72_000], echoId: 'echo-01', nextState: 'Echo01',
   },
   level02: {
     id: 'level-02', title: 'Folge', expectedDurationMs: 62_000, storyDurationMs: 72_000,

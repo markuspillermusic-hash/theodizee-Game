@@ -16,10 +16,10 @@ interface Gust {
   strength: number
 }
 
-const KNOT_TARGET = 6
-const WAVE_PERIOD_MS = 9_800
-const WAVE_SWEEP_MS = 7_400
-const FILL_REQUIRED = 0.62
+const KNOT_TARGET = 5
+const WAVE_PERIOD_MS = 8_400
+/** Wieviel Zeit im hellen Streifen ein Glied wachsen laesst. */
+const LIGHT_REQUIRED_MS = 2_600
 
 /**
  * Bleibe · „Die Wellen fangen".
@@ -64,6 +64,8 @@ export class Level01State extends BaseScene {
   private darkMs = 0
   private gusts: Gust[] = []
   private shadowFrom = -1
+  private shadowGoneAt = -1
+  private shadowRestAt = 0
   private swiftFrom = -1
   private outcomeAt = -1
   private finished = false
@@ -84,6 +86,8 @@ export class Level01State extends BaseScene {
     this.lightMs = 0
     this.darkMs = 0
     this.shadowFrom = -1
+    this.shadowGoneAt = -1
+    this.shadowRestAt = 0
     this.swiftFrom = -1
     this.outcomeAt = -1
     this.finished = false
@@ -110,11 +114,11 @@ export class Level01State extends BaseScene {
     this.graphics = this.add.graphics()
     this.objectiveHud = new ObjectiveHud(this)
     this.goal = new GoalTracker(this.objectiveHud, {
-      label: 'Knoten', target: KNOT_TARGET, bufferLabel: 'Welle',
+      label: 'Wachsen', target: KNOT_TARGET, bufferLabel: 'Welle',
     })
     this.goal.resetBuffer(0)
     this.briefing = new LevelBriefing(this, {
-      goal: 'Das Licht kommt in Wellen. Steh rechtzeitig darin und nimm sie ganz mit.',
+      goal: 'Das Licht wandert in Wellen durch. Steh lange genug darin, dann wächst der Halm ein Glied.',
       controls: 'A / D oder ← / → · Maus oder Berührung',
     }, this.services.getStatus().testMode)
     this.inputManager = new InputManager(this)
@@ -154,17 +158,21 @@ export class Level01State extends BaseScene {
     return 0.18 + (assist >= 1 ? 0.05 : 0) + (assist >= 3 ? 0.07 : 0)
   }
 
+  /**
+   * Der Streifen wandert ohne Unterbrechung durch die ganze Periode — von ausserhalb des Bildes
+   * bis wieder hinaus. Die vorige Fassung liess ihn mitten im Bild verschwinden und an der anderen
+   * Seite neu auftauchen; das las sich als Flackern, nicht als Wanderung.
+   */
   private waveCentre(): number {
-    if (this.waveIndex < 0) return 0
+    if (this.waveIndex < 0) return -1.45
     const local = Phaser.Math.Clamp(
-      (this.elapsedMs - this.waveStartedAt) / (WAVE_SWEEP_MS * this.timeScale()), 0, 1,
+      (this.elapsedMs - this.waveStartedAt) / (WAVE_PERIOD_MS * this.timeScale()), 0, 1,
     )
     return Phaser.Math.Linear(this.waveFrom, this.waveTo, local)
   }
 
   private waveActive(): boolean {
-    if (this.waveIndex < 0 || this.outcomeAt >= 0) return false
-    return this.elapsedMs - this.waveStartedAt <= WAVE_SWEEP_MS * this.timeScale()
+    return this.waveIndex >= 0 && this.outcomeAt < 0
   }
 
   private inLight(): boolean {
@@ -182,43 +190,41 @@ export class Level01State extends BaseScene {
     const period = WAVE_PERIOD_MS * this.timeScale()
     const due = Math.floor(this.elapsedMs / period)
     if (due > this.waveIndex && this.goal.value < KNOT_TARGET) {
-      // Vorherige Welle abrechnen.
-      if (this.waveIndex >= 0) this.settleWave()
       this.waveIndex = due
       this.waveStartedAt = this.elapsedMs
       this.waveFill = 0
       const fromLeft = due % 2 === 0
-      this.waveFrom = fromLeft ? -0.55 : 0.55
+      this.waveFrom = fromLeft ? -1.45 : 1.45
       this.waveTo = -this.waveFrom
       this.services.audio.pulse(150 + due * 12, 0.03)
     }
 
-    if (!this.waveActive()) {
-      if (this.waveIndex >= 0 && this.waveFill > 0) this.settleWave()
-      this.goal.resetBuffer(0)
-      this.darkMs += delta
-      return
-    }
+    if (!this.waveActive()) return
 
+    // Ein Glied entsteht aus gesammelter Lichtzeit, nicht pro Welle. Vorher verfiel alles, was
+    // ueber eine Wellengrenze hinausging — man konnte lange im Licht stehen und trotzdem nichts
+    // zeigen.
+    const required = LIGHT_REQUIRED_MS * this.timeScale()
     if (this.inLight()) {
       this.lightMs += delta
-      this.waveFill = Math.min(1, this.waveFill + delta / (WAVE_SWEEP_MS * this.timeScale()))
+      this.waveFill = Math.min(1, this.waveFill + delta / required)
       if (Math.random() < 0.06) this.services.audio.pulse(240 + this.goal.value * 18, 0.012)
-    } else this.darkMs += delta
+    } else {
+      this.darkMs += delta
+      // Der Schatten nimmt, was schon gewachsen war.
+      if (this.shadowCovers()) this.waveFill = Math.max(0, this.waveFill - delta / (required * 1.6))
+    }
+    if (this.waveFill >= 1) this.settleWave()
     this.goal.resetBuffer(this.waveFill)
   }
 
   /** Eine Welle zählt nur, wenn man weit genug drin war. Halbe Sachen ergeben keinen Knoten. */
   private settleWave(): void {
-    if (this.waveFill >= FILL_REQUIRED) {
-      this.knots.push(this.growth)
-      this.growth = Math.min(1, this.growth + 0.155)
-      this.goal.add(1)
-      this.sparks.emit(this.tipX(), this.tipY(), palette.licht, 120, 720)
-      this.services.audio.pulse(268, 0.06)
-    } else {
-      this.services.audio.pulse(96, 0.025)
-    }
+    this.knots.push(this.growth)
+    this.growth = Math.min(1, this.growth + 0.18)
+    this.goal.add(1)
+    this.sparks.emit(this.tipX(), this.tipY(), palette.licht, 120, 720)
+    this.services.audio.pulse(268, 0.06)
     this.waveFill = 0
   }
 
@@ -263,12 +269,20 @@ export class Level01State extends BaseScene {
     return Phaser.Math.Clamp(Math.sin(local * Math.PI), 0, 1)
   }
 
+  /**
+   * Der Schatten schiebt sich heran und bleibt stehen, bis das schnelle Signal ihn verjagt. Vorher
+   * lief er stur durch und der Schnelle war ohne Wirkung — die Rettung war reine Behauptung.
+   */
   private shadowCentre(): number | null {
     if (this.shadowFrom < 0) return null
-    const span = 7_000 * this.timeScale()
-    const local = (this.elapsedMs - this.shadowFrom) / span
-    if (local < 0 || local > 1) return null
-    return Phaser.Math.Linear(-1.5, 1.5, local)
+    const scale = this.timeScale()
+    if (this.shadowGoneAt >= 0) {
+      const back = (this.elapsedMs - this.shadowGoneAt) / (1_900 * scale)
+      if (back > 1) return null
+      return Phaser.Math.Linear(this.shadowRestAt, 1.9, back)
+    }
+    const local = Phaser.Math.Clamp((this.elapsedMs - this.shadowFrom) / (3_200 * scale), 0, 1)
+    return Phaser.Math.Linear(1.9, this.shadowRestAt, Phaser.Math.Easing.Sine.Out(local))
   }
 
   private shadowCovers(): boolean {
@@ -281,15 +295,21 @@ export class Level01State extends BaseScene {
     const scale = this.timeScale()
     if (this.shadowFrom < 0 && this.goal.value >= 2) {
       this.shadowFrom = this.elapsedMs
-      this.services.ui.setInstruction('Etwas Dunkles kommt.')
+      // Es stellt sich genau dorthin, wo man gerade steht.
+      this.shadowRestAt = Phaser.Math.Clamp(this.tipPosition(), -0.5, 0.5)
+      this.services.ui.setInstruction('Etwas Dunkles nimmt dir das Licht.')
       this.services.audio.pulse(58, 0.08)
     }
-    if (this.shadowFrom >= 0 && this.swiftFrom < 0 && this.elapsedMs - this.shadowFrom >= 3_400 * scale) {
+    if (this.shadowFrom >= 0 && this.swiftFrom < 0 && this.elapsedMs - this.shadowFrom >= 4_600 * scale) {
       this.swiftFrom = this.elapsedMs
       this.services.audio.playSwiftMotif()
-      this.services.ui.setInstruction('Etwas Schnelles verjagt es.')
     }
-    if (this.swiftFrom >= 0 && this.elapsedMs - this.swiftFrom >= 2_600 * scale && this.shadowFrom >= 0) {
+    if (this.swiftFrom >= 0 && this.shadowGoneAt < 0 && this.elapsedMs - this.swiftFrom >= 900 * scale) {
+      this.shadowGoneAt = this.elapsedMs
+      this.services.ui.setInstruction('Etwas Schnelles hat es verjagt.')
+      this.services.audio.pulse(196, 0.05)
+    }
+    if (this.shadowGoneAt >= 0 && this.elapsedMs - this.shadowGoneAt >= 2_400 * scale) {
       this.services.ui.setInstruction('Nimm die Welle mit.')
     }
     if (this.outcomeAt < 0 && this.goal.reached) {
@@ -323,12 +343,6 @@ export class Level01State extends BaseScene {
       g.lineStyle(2, 0xffe9bd, 0.14)
       g.lineBetween(x - half, 150, x - half, GAME_HEIGHT - 60)
       g.lineBetween(x + half, 150, x + half, GAME_HEIGHT - 60)
-    } else if (this.outcomeAt < 0) {
-      // Ankündigung: Die nächste Welle wirft ihren Schein voraus.
-      const period = WAVE_PERIOD_MS * this.timeScale()
-      const next = (Math.floor(this.elapsedMs / period) + 1) % 2 === 0 ? -0.92 : 0.92
-      const near = Phaser.Math.Clamp((this.elapsedMs % period) / period, 0, 1)
-      glowEllipse(g, GAME_WIDTH / 2 + next * 640, 620, 420, 1_100, palette.licht, 0.05 + near * 0.1)
     }
 
     const gust = this.gustStrength()
@@ -408,13 +422,16 @@ export class Level01State extends BaseScene {
     g.strokePath()
 
     // Jeder Knoten bleibt sichtbar am Halm stehen — der Fortschritt ist der Körper.
+    // Jede gefangene Welle ist ein gewachsenes Glied. Der Zaehler ist der Koerper.
     this.knots.forEach((at, index) => {
-      const t = 0.24 + index * (0.72 / Math.max(1, KNOT_TARGET))
+      const t = (index + 1) / (KNOT_TARGET + 1)
       const x = Phaser.Math.Linear(rootX, tipX, t) + Math.sin(time * 0.0017 + index) * 4
       const y = Phaser.Math.Linear(rootY, tipY, t)
-      glow(g, x, y, 34, palette.licht, 0.3)
-      g.fillStyle(0xfff0cb, 0.95)
-      g.fillCircle(x, y, 5.5)
+      g.lineStyle(9 + this.growth * 7, palette.halm, 0.5)
+      g.strokeCircle(x, y, 7)
+      glow(g, x, y, 40, palette.licht, 0.22)
+      g.fillStyle(0xfff0cb, 0.9)
+      g.fillCircle(x, y, 4.5)
       void at
     })
 
