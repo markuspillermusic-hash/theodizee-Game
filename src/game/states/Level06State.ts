@@ -7,83 +7,78 @@ import type { AssistanceLevel, Direction, LevelResult } from '../types'
 import { TimedLevelScene } from './TimedLevelScene'
 import { dust, glow, ground, palette, self, Sparks, vignette } from '../visuals'
 
-/**
- * Die vier Gesichter des Leids, die dieser Abschnitt durchgeht. Keines ist abwendbar, keines ist
- * ein Fehler der spielenden Person — und keines wird am Ende gelöscht.
- */
-type Facet = 'verlust' | 'schuld' | 'ohnmacht' | 'einsamkeit'
-
-interface Station {
-  facet: Facet
+interface Recipient {
   x: number
   y: number
-  color: number
-  /** Zwei Zeilen für das Unterrichtsgespräch: was man tut und was dabei nicht geht. */
-  instruction: string
+  /** Wie hell dieses Gegenüber gerade ist, 0 bis 1. */
+  level: number
+  /** Einmal voll — bleibt dann hell und fällt nicht zurück. */
+  completed: boolean
+  /** Fortgenommen: die Station „Verlust". */
+  gone: boolean
+  /** Hinter der Grenze: die Station „Ohnmacht". */
+  beyond: boolean
+  /** Ob es je Licht von dir bekommen hat. Entscheidet über das Schlussbild. */
+  touched: boolean
+  bornAt: number
+  litAt: number
 }
 
-const STATIONS: Station[] = [
-  { facet: 'verlust', x: 560, y: 380, color: 0x8fd0d8, instruction: 'Bleib bei ihr.' },
-  { facet: 'schuld', x: 1_020, y: 760, color: 0xd97a4a, instruction: 'Beide brauchen dich.' },
-  { facet: 'ohnmacht', x: 1_420, y: 360, color: 0xb59ad8, instruction: 'Du kommst nicht hinüber.' },
-  { facet: 'einsamkeit', x: 1_680, y: 760, color: 0x9eb77f, instruction: 'Ruf, wenn du willst.' },
-]
+interface Mote {
+  x: number
+  y: number
+  toX: number
+  toY: number
+  bornAt: number
+  travelMs: number
+  taken: boolean
+}
 
-const LAYERS = ['Ausrichten', 'Bewegen', 'Tragen', 'Abschirmen', 'Antworten'] as const
-
-const STATION_MS = 11_000
-const LAYER_STEP_MS = 4_200
-const LIGHT_MS = 16_000
-const ALIGN_REQUIRED_MS = 2_200
+const GIVE_TARGET = 9
+const BARRIER_X = 1_430
 const LIGHT_X = 960
 const LIGHT_Y = 540
 
 /**
- * Lass los · „Ein Leben".
+ * Lass los · „Weitergeben".
  *
- * Der Abschnitt erzählt ein Menschenleben in vier Stationen. Jede zeigt ein anderes Gesicht des
- * Leids, und keine lässt sich abwenden:
+ * Der frühere Entwurf machte das Leid selbst zur Aufgabe. Das kann nicht funktionieren: Wäre das
+ * Verhindern die Aufgabe, wäre jedes Leid ein Versagen der spielenden Person — genau das, was
+ * dieses Spiel nicht behaupten darf. Und weil sich nichts verhindern liess, gab es am Ende gar
+ * nichts zu tun.
  *
- * - **Verlust**: Ein Begleitlicht löst sich und treibt fort. Man kann ihm nachgehen; es bleibt
- *   immer knapp ausserhalb der Reichweite.
- * - **Schuld**: Zwei Lichter brauchen einen zugleich. Wem man sich zuwendet, den hält man — das
- *   andere verliert genau dadurch.
- * - **Ohnmacht**: Ein Licht leidet hinter einer Grenze, die man nicht überschreiten kann. Man kann
- *   nur danebenbleiben oder weitergehen.
- * - **Einsamkeit**: Man kann rufen. Es kommt nichts zurück.
+ * Deshalb ist die Aufgabe jetzt eine andere, und das Leid **stört** dabei:
  *
- * Jede Station hinterlässt eine dunkle Kerbe an der eigenen Gestalt. Danach fallen die erworbenen
- * Fähigkeiten rückwärts weg, bis nur noch Ausrichten bleibt.
+ * Du hast endliches Licht. Andere brauchen welches. Berühren überträgt, Geben kostet dich, der
+ * Vorrat erholt sich nur langsam. Daraus entstehen echte Entscheidungen — wen, wie viel, wann, in
+ * welcher Reihenfolge — und eine Fertigkeit, die man besser oder schlechter beherrschen kann.
  *
- * Im Schluss wächst ein Licht heran, das nicht erklärt wird. Wer sich ihm zuwendet, sieht die vier
- * Kerben nacheinander **aufleuchten** statt verschwinden: Nichts wird gelöscht, alles wird
- * aufgenommen. Das ist die Aussage des ganzen Spiels, und sie steht in keinem Satz.
+ * Die vier Gesichter des Leids brechen in diese laufende Aufgabe hinein: Verlust nimmt einen mitsamt
+ * dem, was man investiert hat. Schuld lässt zwei zugleich rufen, die weit auseinanderliegen.
+ * Ohnmacht zeigt einen hinter einer Grenze. Einsamkeit heisst: eine Strecke lang nimmt niemand an.
+ *
+ * Gezählt wird, **was du weggegeben hast** — nicht, wie viele am Ende noch brennen. Wer sich
+ * verausgabt und trotzdem alle verliert, steht hoch da. Am Ende entzündet sich jedes Licht wieder,
+ * das du je berührt hast, auch die erloschenen.
  */
 export class Level06State extends TimedLevelScene {
   private graphics!: Phaser.GameObjects.Graphics
-  private player = new Phaser.Math.Vector2(240, 560)
+  private player = new Phaser.Math.Vector2(960, 620)
   private velocity = new Phaser.Math.Vector2()
-  private facing = 0
+  private reserve = 0
+  private capacity = 1
+  private recipients: Recipient[] = []
+  private motes: Mote[] = []
   private phase = 0
   private phaseStartedAt = 0
-  private stationIndex = 0
-  private stationStartedAt = 0
-  private carried: Facet[] = []
-  private companion = new Phaser.Math.Vector2(0, 0)
-  private companionAlpha = 1
-  private pairLeft = 1
-  private pairRight = 1
-  private chosenSide: 'left' | 'right' | null = null
-  private beyond = 1
-  private calls = 0
-  private layersLost = 0
-  private alignMs = 0
-  private aligned = false
-  private litMarks = 0
-  private activeMs = 0
+  private eventIndex = 0
+  private lonelyUntil = -1
+  private given = 0
+  private lostOnes = 0
+  private spentTotal = 0
+  private kindled = 0
   private sampleClock = 0
   private sparks = new Sparks()
-  private layerLabels: Phaser.GameObjects.Text[] = []
   private objectiveHud!: ObjectiveHud
   private goal!: GoalTracker
 
@@ -92,41 +87,34 @@ export class Level06State extends TimedLevelScene {
   }
 
   create(): void {
-    this.player.set(240, 560)
+    this.player.set(960, 620)
     this.velocity.set(0, 0)
-    this.facing = 0
+    this.reserve = 0
+    this.capacity = 1
+    this.recipients = []
+    this.motes = []
     this.phase = 0
     this.phaseStartedAt = 0
-    this.stationIndex = 0
-    this.stationStartedAt = 0
-    this.carried = []
-    this.companion.set(360, 420)
-    this.companionAlpha = 1
-    this.pairLeft = 1
-    this.pairRight = 1
-    this.chosenSide = null
-    this.beyond = 1
-    this.calls = 0
-    this.layersLost = 0
-    this.alignMs = 0
-    this.aligned = false
-    this.litMarks = 0
-    this.activeMs = 0
+    this.eventIndex = 0
+    this.lonelyUntil = -1
+    this.given = 0
+    this.lostOnes = 0
+    this.spentTotal = 0
+    this.kindled = 0
     this.sampleClock = 0
     this.sparks = new Sparks()
     this.graphics = this.add.graphics()
-    this.layerLabels.forEach((label) => label.destroy())
-    this.layerLabels = LAYERS.map((name, index) => this.add.text(
-      224, 292 + (LAYERS.length - 1 - index) * 34, name.toUpperCase(),
-      { fontFamily: 'Arial, sans-serif', fontSize: '17px', color: '#cfd6cb' },
-    ).setDepth(30).setAlpha(0))
     this.objectiveHud = new ObjectiveHud(this)
-    this.goal = new GoalTracker(this.objectiveHud, { label: 'Getragen', target: STATIONS.length })
-    this.cameras.main.setBackgroundColor(0x070709)
-    this.beginTimedLevel('Level06', levels.level06, 'AUSSCHNITT · 06', 'Geh weiter.', 'release', {
-      goal: 'Geh durch dein Leben. Nicht alles lässt sich halten.',
-      controls: 'WASD / Pfeiltasten · Leertaste zum Rufen · Maus oder Berührung',
+    this.goal = new GoalTracker(this.objectiveHud, {
+      label: 'Empfangen', target: 4, bufferLabel: 'Dein Licht',
     })
+    this.goal.resetBuffer(0)
+    this.cameras.main.setBackgroundColor(0x070709)
+    this.beginTimedLevel('Level06', levels.level06, 'AUSSCHNITT · 06', 'Nimm auf, was zu dir kommt.', 'release', {
+      goal: 'Du hast Licht, das dir gegeben wurde. Gib es weiter, solange du kannst.',
+      controls: 'WASD / Pfeiltasten · Maus oder Berührung',
+    })
+    this.spawnMotes()
   }
 
   update(time: number, delta: number): void {
@@ -136,39 +124,37 @@ export class Level06State extends TimedLevelScene {
     this.goal.advance(delta)
     this.updatePhase(delta)
     this.updateControl(delta)
-    if (this.phase === 1) this.updateStation(delta)
-    if (this.phase === 3) this.updateAlignment(delta)
+    if (this.phase === 0) this.updateMotes(delta)
+    else if (this.phase < 4) this.updateGiving(delta)
+    else this.updateKindling()
+    this.goal.resetBuffer(this.reserve)
     this.drawWorld(time)
   }
 
   protected applyHint(level: AssistanceLevel): void {
     this.services.setAssistance(level)
-    if (level === 1) this.services.ui.setHint('Manches lässt sich nicht halten. Geh weiter.')
-    if (level === 2) this.services.ui.setHint('Es gibt hier nichts falsch zu machen.')
-    if (level === 3) this.services.ui.setHint(this.phase >= 3 ? 'Wende dich dem Licht zu.' : 'Der Weg führt nach rechts.')
+    if (level === 1) this.services.ui.setHint('Berühren überträgt. Es reicht nie für alle.')
+    if (level === 2) this.services.ui.setHint('Wer schon voll ist, bleibt hell. Kümmere dich um die schwachen.')
+    if (level === 3) this.services.ui.setHint('Dein Licht füllt sich schneller nach.')
   }
 
   protected collectResult(): LevelResult {
     return {
-      choices: {
-        released: this.aligned,
-        heldOn: this.chosenSide ?? 'none',
-      },
+      choices: { released: this.phase >= 4, heldOn: this.reserve > 0.4 },
       metrics: {
-        stationsPassed: this.carried.length,
-        stationTarget: STATIONS.length,
-        layersLost: this.layersLost,
-        litMarks: this.litMarks,
-        calls: this.calls,
-        alignedToLight: this.aligned ? 1 : 0,
-        activeRatio: this.elapsedMs ? this.activeMs / this.elapsedMs : 0,
-        gradeScore: this.aligned ? 2 : this.carried.length >= 3 ? 1 : 0,
+        given: this.given,
+        giveTarget: GIVE_TARGET,
+        spentTotal: this.spentTotal,
+        lostOnes: this.lostOnes,
+        kindled: this.kindled,
+        touched: this.recipients.filter((entry) => entry.touched).length,
+        gradeScore: this.given >= GIVE_TARGET ? 2 : this.given >= GIVE_TARGET * 0.55 ? 1 : 0,
       },
     }
   }
 
   protected afterLevelFinished(): void {
-    this.services.audio.stopAmbient(1.2)
+    this.services.audio.stopAmbient(1.4)
     this.services.ui.setScene('')
     this.cameras.main.fadeOut(2_200, 255, 255, 250)
     const testMode = this.services.getStatus().testMode
@@ -179,143 +165,196 @@ export class Level06State extends TimedLevelScene {
     return this.services.getTimeScale()
   }
 
-  private canMove(): boolean {
-    return this.layersLost < 4
+  private reach(): number {
+    const assist = this.hintManager.getLevel() >= 2 ? 16 : 0
+    return (this.phase >= 3 ? Phaser.Math.Linear(92, 54, this.decay()) : 92) + assist
   }
 
-  private layerAlive(index: number): boolean {
-    return index < LAYERS.length - this.layersLost
+  /** 0 bis 1, wie weit der eigene Abbau fortgeschritten ist. */
+  private decay(): number {
+    if (this.phase < 3) return 0
+    if (this.phase >= 4) return 1
+    return Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (15_000 * this.timeScale()), 0, 1)
   }
 
-  private station(): Station {
-    return STATIONS[Math.min(this.stationIndex, STATIONS.length - 1)]
+  private spawnMotes(): void {
+    const targets = [[700, 430], [1_180, 700], [820, 780], [1_150, 400]]
+    this.motes = targets.map(([x, y], index) => ({
+      x: index % 2 === 0 ? -120 : GAME_WIDTH + 120,
+      y: 200 + index * 190,
+      toX: x,
+      toY: y,
+      bornAt: 1_200 * index * this.timeScale(),
+      travelMs: 2_600 * this.timeScale(),
+      taken: false,
+    }))
+  }
+
+  private addRecipients(entries: Array<[number, number, boolean?]>): void {
+    entries.forEach(([x, y, beyond]) => {
+      this.recipients.push({
+        x, y, level: 0, completed: false, gone: false, beyond: Boolean(beyond),
+        touched: false, bornAt: this.elapsedMs, litAt: -1,
+      })
+    })
   }
 
   private updatePhase(delta: number): void {
     const scale = this.timeScale()
+    const local = this.elapsedMs - this.phaseStartedAt
+
     if (this.phase === 0) {
-      // Aufbrechen: kurz, hell, ohne Widerstand. Der Vergleichspunkt für alles Weitere.
-      if (this.elapsedMs >= 9_000 * scale || this.player.x > 480) this.enterPhase(1)
+      if (this.goal.reached || this.elapsedMs >= 13_000 * scale) this.enterPhase(1)
       return
     }
     if (this.phase === 1) {
-      if (this.elapsedMs - this.stationStartedAt < STATION_MS * scale) return
-      this.finishStation()
+      if (local >= 19_000 * scale) this.enterPhase(2)
       return
     }
     if (this.phase === 2) {
-      const step = LAYER_STEP_MS * scale * (this.hintManager.getLevel() >= 3 ? 1.4 : 1)
-      const lost = Math.min(4, Math.floor((this.elapsedMs - this.phaseStartedAt) / step))
-      if (lost !== this.layersLost) {
-        this.layersLost = lost
-        this.services.audio.pulse(78 - lost * 7, 0.06)
-        this.cameras.main.shake(200, 0.0026)
-      }
-      if (this.layersLost >= 4) this.enterPhase(3)
+      this.runResistances(local, scale)
+      if (local >= 31_000 * scale) this.enterPhase(3)
       return
     }
-    if (this.phase === 3 && this.elapsedMs - this.phaseStartedAt >= LIGHT_MS * scale) this.finishLevel()
+    if (this.phase === 3) {
+      this.capacity = Phaser.Math.Linear(1, 0.4, this.decay())
+      this.reserve = Math.min(this.reserve, this.capacity)
+      if (local >= 15_000 * scale) this.enterPhase(4)
+      return
+    }
+    if (this.phase === 4 && local >= 16_000 * scale) this.finishLevel()
     void delta
+  }
+
+  /** Die vier Gesichter des Leids, mitten in die laufende Aufgabe hinein. */
+  private runResistances(local: number, scale: number): void {
+    if (this.eventIndex === 0 && local >= 2_500 * scale) {
+      // Verlust: einer, in den man schon investiert hat, wird fortgenommen.
+      this.eventIndex = 1
+      const victim = [...this.recipients]
+        .filter((entry) => !entry.gone && !entry.completed && entry.touched)
+        .sort((a, b) => b.level - a.level)[0] ?? this.recipients.find((entry) => !entry.gone)
+      if (victim) {
+        victim.gone = true
+        this.lostOnes += 1
+        this.sparks.emit(victim.x, victim.y, 0x8fd0d8, 160, 900)
+        this.services.audio.pulse(64, 0.08)
+        this.cameras.main.shake(260, 0.004)
+      }
+      this.services.ui.setInstruction('Er ist fort.')
+      return
+    }
+    if (this.eventIndex === 1 && local >= 10_000 * scale) {
+      // Schuld: zwei zugleich, weit auseinander. Einer bleibt liegen.
+      this.eventIndex = 2
+      this.addRecipients([[320, 340], [1_600, 800]])
+      this.services.ui.setInstruction('Zwei zugleich.')
+      this.services.audio.playMotif('care', 0.16)
+      return
+    }
+    if (this.eventIndex === 2 && local >= 18_000 * scale) {
+      // Ohnmacht: sichtbar, bedürftig, unerreichbar.
+      this.eventIndex = 3
+      this.addRecipients([[1_690, 420, true]])
+      this.services.ui.setInstruction('Du kommst nicht hinüber.')
+      this.services.audio.pulse(88, 0.05)
+      return
+    }
+    if (this.eventIndex === 3 && local >= 24_500 * scale) {
+      // Einsamkeit: eine Strecke lang nimmt niemand etwas an.
+      this.eventIndex = 4
+      this.lonelyUntil = this.elapsedMs + 7_000 * scale
+      this.services.ui.setInstruction('Es nimmt gerade niemand.')
+      this.services.audio.playMotif('release', 0.16)
+    }
   }
 
   private enterPhase(next: number): void {
     this.phase = next
     this.phaseStartedAt = this.elapsedMs
+    const scale = this.timeScale()
     if (next === 1) {
-      this.stationStartedAt = this.elapsedMs
-      this.beginStation()
-    } else if (next === 2) {
-      this.services.ui.setInstruction('Es wird weniger.')
-      this.services.ui.setHint('')
-      this.services.audio.playMotif('release', 0.2)
-    } else if (next === 3) {
-      this.velocity.set(0, 0)
-      this.goal.relabel('Zuwenden', 1)
+      this.goal.relabel('Weitergegeben', GIVE_TARGET)
       this.goal.setValue(0)
+      this.addRecipients([[560, 400], [1_320, 620], [880, 820]])
+      this.services.ui.setInstruction('Gib weiter.')
+      this.services.audio.playMotif('bond', 0.18)
+    } else if (next === 2) {
+      this.services.ui.setInstruction('Gib weiter.')
+    } else if (next === 3) {
+      this.services.ui.setInstruction('Es wird weniger.')
+      this.services.audio.playMotif('release', 0.2)
+    } else if (next === 4) {
+      this.reserve = 0
+      this.velocity.set(0, 0)
+      this.goal.relabel('Weitergegeben', Math.max(GIVE_TARGET, this.given))
+      this.goal.setValue(this.given)
       this.services.ui.setInstruction('')
       this.services.ui.setHint('')
-      this.services.audio.playMotif('release', 0.3)
+      this.services.audio.playMotif('release', 0.34)
+      void scale
     }
   }
 
-  private beginStation(): void {
-    const station = this.station()
-    this.services.ui.setInstruction(station.instruction)
-    this.services.audio.playMotif(station.facet === 'einsamkeit' ? 'release' : 'bond', 0.16)
-    if (station.facet === 'verlust') this.companion.set(station.x, station.y)
-    if (station.facet === 'schuld') {
-      this.pairLeft = 1
-      this.pairRight = 1
-      this.chosenSide = null
-    }
-    if (station.facet === 'ohnmacht') this.beyond = 1
+  private updateMotes(delta: number): void {
+    this.motes.forEach((mote) => {
+      if (mote.taken || this.elapsedMs < mote.bornAt) return
+      const local = Phaser.Math.Clamp((this.elapsedMs - mote.bornAt) / mote.travelMs, 0, 1)
+      mote.x = Phaser.Math.Linear(mote.x, mote.toX, 0.04)
+      mote.y = Phaser.Math.Linear(mote.y, mote.toY, 0.04)
+      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, mote.x, mote.y) > this.reach()) return
+      mote.taken = true
+      this.reserve = Math.min(this.capacity, this.reserve + 0.3)
+      this.sparks.emit(this.player.x, this.player.y, palette.licht, 80, 560)
+      this.services.audio.pulse(210 + this.goal.value * 20, 0.05)
+      this.goal.add(1)
+      void local
+    })
+    void delta
   }
 
-  private finishStation(): void {
-    const station = this.station()
-    this.carried.push(station.facet)
-    this.goal.add(1)
-    this.sparks.emit(this.player.x, this.player.y, station.color, 110, 700)
-    this.services.audio.pulse(96, 0.05)
-    this.stationIndex += 1
-    if (this.stationIndex >= STATIONS.length) {
-      this.enterPhase(2)
-      return
-    }
-    this.stationStartedAt = this.elapsedMs
-    this.beginStation()
-  }
-
-  /** Der Ablauf innerhalb einer Station. Nichts davon ist zu gewinnen. */
-  private updateStation(delta: number): void {
+  private updateGiving(delta: number): void {
     const scale = this.timeScale()
-    const local = Phaser.Math.Clamp((this.elapsedMs - this.stationStartedAt) / (STATION_MS * scale), 0, 1)
-    const station = this.station()
+    const step = delta / scale
+    const lonely = this.lonelyUntil > 0 && this.elapsedMs < this.lonelyUntil
 
-    if (station.facet === 'verlust') {
-      // Sie bleibt immer knapp ausserhalb der Reichweite und verblasst.
-      const away = new Phaser.Math.Vector2(this.companion.x - this.player.x, this.companion.y - this.player.y)
-      const distance = away.length()
-      if (distance < 190) this.companion.add(away.normalize().scale((190 - distance) * 0.06))
-      this.companion.x = Phaser.Math.Clamp(this.companion.x + 0.55 * (delta / 16.667), 120, GAME_WIDTH - 120)
-      this.companion.y = Phaser.Math.Clamp(this.companion.y - 0.24 * (delta / 16.667), 140, GAME_HEIGHT - 140)
-      this.companionAlpha = Phaser.Math.Clamp(1 - local * 1.15, 0, 1)
-      return
-    }
+    // Man empfängt weiter, nur langsam. Niemand lebt aus sich selbst.
+    const refill = this.hintManager.getLevel() >= 3 ? 0.000075 : 0.000045
+    this.reserve = Math.min(this.capacity, this.reserve + step * refill)
 
-    if (station.facet === 'schuld') {
-      // Nähe hält das eine und lässt genau dadurch das andere fallen.
-      const left = new Phaser.Math.Vector2(station.x - 300, station.y - 60)
-      const right = new Phaser.Math.Vector2(station.x + 300, station.y - 60)
-      const toLeft = Phaser.Math.Distance.BetweenPoints(this.player, left)
-      const toRight = Phaser.Math.Distance.BetweenPoints(this.player, right)
-      const near = 230
-      const rate = (delta / scale) * 0.00016
-      if (toLeft < near) {
-        this.pairLeft = Math.min(1, this.pairLeft + rate * 1.4)
-        this.pairRight = Math.max(0.08, this.pairRight - rate * 1.6)
-        this.chosenSide = 'left'
-      } else if (toRight < near) {
-        this.pairRight = Math.min(1, this.pairRight + rate * 1.4)
-        this.pairLeft = Math.max(0.08, this.pairLeft - rate * 1.6)
-        this.chosenSide = 'right'
-      } else {
-        this.pairLeft = Math.max(0.08, this.pairLeft - rate * 0.9)
-        this.pairRight = Math.max(0.08, this.pairRight - rate * 0.9)
-      }
-      return
-    }
+    this.recipients.forEach((entry) => {
+      if (entry.gone) return
+      if (!entry.completed) entry.level = Math.max(0, entry.level - step * 0.000042)
+      if (entry.completed || entry.beyond || lonely) return
+      const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, entry.x, entry.y)
+      if (distance > this.reach() || this.reserve <= 0.002) return
+      const amount = Math.min(this.reserve, step * 0.00055)
+      this.reserve -= amount
+      this.spentTotal += amount
+      entry.level = Math.min(1, entry.level + amount * 1.45)
+      entry.touched = true
+      if (entry.level < 1) return
+      entry.completed = true
+      entry.litAt = this.elapsedMs
+      this.given += 1
+      this.goal.setValue(this.given)
+      this.sparks.emit(entry.x, entry.y, palette.licht, 130, 700)
+      this.services.audio.pulse(232 + (this.given % 5) * 22, 0.055)
+    })
+  }
 
-    if (station.facet === 'ohnmacht') {
-      // Es verlischt, egal wie nah man steht. Die Grenze ist keine Aufgabe.
-      this.beyond = Phaser.Math.Clamp(1 - local * 0.92, 0.06, 1)
-      return
-    }
-
-    if (this.inputManager.justActionDown()) {
-      this.calls += 1
-      this.sparks.emit(this.player.x, this.player.y, 0xd9d6c6, 220, 1_400)
-      this.services.audio.pulse(188, 0.03)
+  /** Im Schluss entzündet sich alles wieder, was je Licht von dir bekommen hat. */
+  private updateKindling(): void {
+    const since = this.elapsedMs - this.phaseStartedAt
+    const touched = this.recipients.filter((entry) => entry.touched)
+    const shouldBe = Phaser.Math.Clamp(Math.floor(since / (1_500 * this.timeScale())), 0, touched.length)
+    while (this.kindled < shouldBe) {
+      const entry = touched[this.kindled]
+      this.kindled += 1
+      entry.gone = false
+      entry.level = 1
+      this.sparks.emit(entry.x, entry.y, palette.licht, 200, 1_400)
+      this.services.audio.pulse(200 + this.kindled * 18, 0.05)
     }
   }
 
@@ -323,238 +362,121 @@ export class Level06State extends TimedLevelScene {
     const input = this.inputManager.getVector(this.player.x, this.player.y)
     const frameScale = Phaser.Math.Clamp(delta / 16.667, 0.4, 2.4)
     if (input.active) {
-      this.activeMs += delta
+      this.velocity.x += input.x * Phaser.Math.Linear(0.78, 0.3, this.decay()) * frameScale
+      this.velocity.y += input.y * Phaser.Math.Linear(0.78, 0.3, this.decay()) * frameScale
       const direction: Direction = input.x < -0.2 ? 'left' : input.x > 0.2 ? 'right' : 'center'
       this.services.telemetry.recordDirection(direction)
     }
+    const maxSpeed = this.phase >= 4 ? 1.4 : Phaser.Math.Linear(7.4, 2.6, this.decay())
+    this.velocity.scale(Math.pow(input.active ? 0.92 : 0.86, frameScale)).limit(maxSpeed)
+    this.player.x = Phaser.Math.Clamp(this.player.x + this.velocity.x * frameScale, 150, GAME_WIDTH - 150)
+    this.player.y = Phaser.Math.Clamp(this.player.y + this.velocity.y * frameScale, 200, GAME_HEIGHT - 180)
 
-    if (this.canMove()) {
-      const power = Phaser.Math.Linear(0.7, 0.22, this.layersLost / 4)
-      if (input.active) {
-        this.velocity.x += input.x * power * frameScale
-        this.velocity.y += input.y * power * frameScale
-      }
-      const maxSpeed = Phaser.Math.Linear(6.4, 2, this.layersLost / 4)
-      this.velocity.scale(Math.pow(input.active ? 0.92 : 0.85, frameScale)).limit(maxSpeed)
-      this.player.x = Phaser.Math.Clamp(this.player.x + this.velocity.x * frameScale, 160, GAME_WIDTH - 160)
-      this.player.y = Phaser.Math.Clamp(this.player.y + this.velocity.y * frameScale, 200, GAME_HEIGHT - 180)
-      if (this.velocity.lengthSq() > 0.05) this.facing = this.velocity.angle()
-    } else if (input.active) {
-      // Nur noch Ausrichten — dasselbe, was der Halm in Level 1 konnte.
-      this.facing = Phaser.Math.Angle.RotateTo(this.facing, Math.atan2(input.y, input.x), 0.045 * frameScale)
-      this.velocity.set(0, 0)
+    // Die Grenze der Ohnmacht: sichtbar, aber nicht zu überschreiten.
+    if (this.eventIndex >= 3 && this.phase < 4 && this.player.x > BARRIER_X) {
+      this.player.x = BARRIER_X
+      this.velocity.x = Math.min(0, this.velocity.x)
     }
 
     this.sampleClock += delta
     if (this.sampleClock >= 120) {
-      this.services.telemetry.sample((this.player.x - 960) / 680, this.velocity.length() / 8, !input.active, this.sampleClock)
+      this.services.telemetry.sample((this.player.x - 960) / 680, this.velocity.length() / 8, this.reserve > 0.3, this.sampleClock)
       this.sampleClock = 0
     }
   }
 
-  private updateAlignment(delta: number): void {
-    const toLight = Phaser.Math.Angle.Between(this.player.x, this.player.y, LIGHT_X, LIGHT_Y)
-    const spread = this.hintManager.getLevel() >= 3 ? 0.7 : 0.42
-    const off = Math.abs(Phaser.Math.Angle.Wrap(this.facing - toLight))
-    if (off <= spread) this.alignMs += delta
-    else this.alignMs = Math.max(0, this.alignMs - delta * 0.6)
-
-    if (!this.aligned && this.alignMs >= ALIGN_REQUIRED_MS * this.timeScale()) {
-      this.aligned = true
-      this.goal.setValue(1)
-      this.services.audio.playMotif('release', 0.34)
-    }
-    if (!this.aligned) return
-
-    // Nichts wird gelöscht. Eine Kerbe nach der anderen leuchtet auf.
-    const since = this.elapsedMs - (this.phaseStartedAt + ALIGN_REQUIRED_MS * this.timeScale())
-    const shouldBeLit = Phaser.Math.Clamp(Math.floor(since / (1_700 * this.timeScale())), 0, this.carried.length)
-    while (this.litMarks < shouldBeLit) {
-      const facet = this.carried[this.litMarks]
-      const station = STATIONS.find((entry) => entry.facet === facet)
-      this.litMarks += 1
-      this.sparks.emit(this.player.x, this.player.y, station?.color ?? palette.licht, 180, 1_300)
-      this.services.audio.pulse(210 + this.litMarks * 22, 0.05)
-    }
-  }
-
-  private lightGrowth(): number {
-    if (this.phase < 3) return 0
-    return Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (LIGHT_MS * this.timeScale()), 0, 1)
-  }
-
   private drawWorld(time: number): void {
     const g = this.graphics
-    const dim = Phaser.Math.Clamp(this.layersLost / 4, 0, 1)
-    const growth = this.lightGrowth()
+    const growth = this.phase >= 4
+      ? Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (16_000 * this.timeScale()), 0, 1)
+      : 0
     g.clear()
     ground(
       g,
-      Phaser.Display.Color.GetColor(Math.round(14 + growth * 40), Math.round(14 + growth * 36), Math.round(22 + growth * 30)),
-      Phaser.Display.Color.GetColor(Math.round(22 + growth * 44), Math.round(18 + growth * 38), Math.round(24 + growth * 30)),
+      Phaser.Display.Color.GetColor(Math.round(13 + growth * 44), Math.round(13 + growth * 40), Math.round(20 + growth * 32)),
+      Phaser.Display.Color.GetColor(Math.round(20 + growth * 46), Math.round(17 + growth * 40), Math.round(22 + growth * 32)),
     )
     dust(g, time, 42, 0xd6d2e0, 0.008)
 
-    this.drawPath(g)
-    if (this.phase === 1) this.drawStation(g, time)
-    this.drawLayers(g)
-    if (this.phase === 3) this.drawLight(g, time, growth)
+    if (this.eventIndex >= 3 && this.phase < 4) this.drawBarrier(g, time)
+    if (this.phase === 0) this.drawMotes(g)
+    this.drawRecipients(g, time)
+    if (this.phase >= 4) this.drawLight(g, time, growth)
     this.sparks.draw(g)
-    this.drawSelf(g, time, dim)
+    this.drawSelf(g, time)
 
-    if (this.phase >= 2) {
-      const field = Phaser.Math.Linear(940, 300, dim)
-      g.lineStyle(3, 0xd9d7ca, 0.06)
-      g.strokeCircle(this.player.x, this.player.y, field)
+    const lonely = this.lonelyUntil > 0 && this.elapsedMs < this.lonelyUntil && this.phase < 4
+    if (lonely) {
+      g.lineStyle(2, 0x9aa39c, 0.18 + Math.sin(time * 0.004) * 0.06)
+      g.strokeCircle(this.player.x, this.player.y, this.reach() + 26)
     }
-    vignette(g, 0.36 * (1 - growth * 0.7))
 
-    // Am Ende nimmt das Licht das ganze Bild.
-    if (growth > 0.62) {
-      const wash = Phaser.Math.Clamp((growth - 0.62) / 0.38, 0, 1)
-      g.fillStyle(0xfffdf4, Math.pow(wash, 2.2) * 0.96)
+    vignette(g, 0.36 * (1 - growth * 0.7))
+    if (growth > 0.66) {
+      const wash = Phaser.Math.Clamp((growth - 0.66) / 0.34, 0, 1)
+      g.fillStyle(0xfffdf4, Math.pow(wash, 2.2) * 0.97)
       g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
     }
   }
 
-  /** Die Lebenslinie: eine leise Spur von links nach rechts, an der die Stationen liegen. */
-  private drawPath(g: Phaser.GameObjects.Graphics): void {
-    if (this.phase >= 3) return
-    g.lineStyle(1.4, 0xcfd6cb, 0.1)
-    g.beginPath()
-    g.moveTo(200, 560)
-    STATIONS.forEach((station) => g.lineTo(station.x, station.y))
-    g.lineTo(GAME_WIDTH - 200, 560)
-    g.strokePath()
-    STATIONS.forEach((station, index) => {
-      const done = index < this.stationIndex
-      const current = index === this.stationIndex
-      g.fillStyle(station.color, done ? 0.5 : current ? 0.32 : 0.14)
-      g.fillCircle(station.x, station.y, current ? 9 : 6)
-      if (current) glow(g, station.x, station.y, 120, station.color, 0.12)
+  private drawMotes(g: Phaser.GameObjects.Graphics): void {
+    this.motes.forEach((mote) => {
+      if (mote.taken || this.elapsedMs < mote.bornAt) return
+      glow(g, mote.x, mote.y, 90, palette.licht, 0.3)
+      g.fillStyle(0xfff4d8, 0.95)
+      g.fillCircle(mote.x, mote.y, 7)
     })
   }
 
-  private drawStation(g: Phaser.GameObjects.Graphics, time: number): void {
-    const station = this.station()
-    if (station.facet === 'verlust') {
-      if (this.companionAlpha <= 0.02) return
-      glow(g, this.companion.x, this.companion.y, 150, station.color, 0.3 * this.companionAlpha)
-      g.lineStyle(2, station.color, 0.5 * this.companionAlpha)
-      g.strokeCircle(this.companion.x, this.companion.y, 22)
-      g.fillStyle(0xdff4f6, 0.9 * this.companionAlpha)
-      g.fillCircle(this.companion.x, this.companion.y, 8)
-      g.lineStyle(1.5, station.color, 0.16 * this.companionAlpha)
-      g.lineBetween(this.player.x, this.player.y, this.companion.x, this.companion.y)
-      return
-    }
-    if (station.facet === 'schuld') {
-      const left = new Phaser.Math.Vector2(station.x - 300, station.y - 60)
-      const right = new Phaser.Math.Vector2(station.x + 300, station.y - 60)
-      this.drawNeedy(g, left.x, left.y, this.pairLeft, station.color)
-      this.drawNeedy(g, right.x, right.y, this.pairRight, 0xe8b969)
-      return
-    }
-    if (station.facet === 'ohnmacht') {
-      // Die Grenze ist eine Wand aus Licht, die man sieht und nicht durchdringt.
-      const wallX = station.x + 130
-      for (let index = 0; index < 26; index += 1) {
-        const y = 180 + index * 34
-        g.lineStyle(2, 0x6f6a86, 0.16 + Math.sin(time * 0.001 + index) * 0.05)
-        g.lineBetween(wallX, y, wallX + 26, y + 18)
+  private drawRecipients(g: Phaser.GameObjects.Graphics, time: number): void {
+    this.recipients.forEach((entry) => {
+      if (entry.gone) return
+      const colour = entry.completed ? palette.licht : entry.beyond ? 0xb59ad8 : 0x8fd0d8
+      const pulse = 1 + Math.sin(time * 0.003 + entry.x) * 0.1
+      glow(g, entry.x, entry.y, (60 + entry.level * 130) * pulse, colour, 0.1 + entry.level * 0.3)
+      g.lineStyle(6, 0x211d26, 0.6)
+      g.strokeCircle(entry.x, entry.y, 46)
+      g.lineStyle(6, colour, 0.9)
+      g.beginPath()
+      g.arc(entry.x, entry.y, 46, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * entry.level, false)
+      g.strokePath()
+      g.fillStyle(entry.completed ? 0xfff6dd : 0xdff4f6, 0.35 + entry.level * 0.6)
+      g.fillCircle(entry.x, entry.y, 10)
+      // Wer noch nichts hat und schwach wird, ruft sichtbar.
+      if (!entry.completed && entry.level < 0.25 && this.phase < 4) {
+        g.lineStyle(2, colour, 0.16 + Math.sin(time * 0.006 + entry.y) * 0.1)
+        g.strokeCircle(entry.x, entry.y, 70 + Math.sin(time * 0.003 + entry.y) * 9)
       }
-      glow(g, station.x + 320, station.y + 120, 200, station.color, 0.24 * this.beyond)
-      g.fillStyle(0xe6dcf4, 0.85 * this.beyond)
-      g.fillCircle(station.x + 320, station.y + 120, 9)
-      return
-    }
-    // Einsamkeit: nichts steht da. Genau das ist es.
-    g.lineStyle(1.4, station.color, 0.1)
-    g.strokeCircle(station.x, station.y, 240 + Math.sin(time * 0.001) * 12)
+    })
   }
 
-  private drawNeedy(g: Phaser.GameObjects.Graphics, x: number, y: number, strength: number, color: number): void {
-    glow(g, x, y, 130 * strength + 30, color, 0.26 * strength)
-    g.lineStyle(6, 0x241f28, 0.55)
-    g.strokeCircle(x, y, 28)
-    g.lineStyle(6, color, 0.85)
-    g.beginPath()
-    g.arc(x, y, 28, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * strength, false)
-    g.strokePath()
-    g.fillStyle(0xf2ecdd, 0.8 * strength + 0.15)
-    g.fillCircle(x, y, 7)
-  }
-
-  private drawLayers(g: Phaser.GameObjects.Graphics): void {
-    if (this.phase < 2) {
-      this.layerLabels.forEach((label) => label.setAlpha(0))
-      return
-    }
-    const fade = this.phase === 3 ? Phaser.Math.Clamp(1 - this.lightGrowth() * 2.2, 0, 1) : 1
-    const x = 92
-    let y = 300
-    for (let index = LAYERS.length - 1; index >= 0; index -= 1) {
-      const alive = this.layerAlive(index)
-      const last = index === 0
-      g.fillStyle(alive ? (last ? palette.licht : 0xcfd6cb) : 0x4a4f48, (alive ? 0.85 : 0.3) * fade)
-      g.fillRect(x, y, 116, 5)
-      const label = this.layerLabels[index]
-      if (label) {
-        label.setY(y - 11)
-        label.setAlpha((alive ? (last ? 0.95 : 0.7) : 0.28) * fade)
-        label.setColor(alive && last ? '#f0cd8a' : '#cfd6cb')
-      }
-      if (!alive) {
-        g.lineStyle(2, 0x6d7269, 0.55 * fade)
-        g.lineBetween(x - 8, y + 2, x + 124, y + 2)
-        if (label) g.lineBetween(label.x - 4, y + 2, label.x + label.width + 4, y + 2)
-      }
-      y += 34
+  private drawBarrier(g: Phaser.GameObjects.Graphics, time: number): void {
+    for (let index = 0; index < 24; index += 1) {
+      const y = 190 + index * 36
+      g.lineStyle(2, 0x6f6a86, 0.18 + Math.sin(time * 0.001 + index) * 0.05)
+      g.lineBetween(BARRIER_X + 34, y, BARRIER_X + 62, y + 20)
     }
   }
 
   private drawLight(g: Phaser.GameObjects.Graphics, time: number, growth: number): void {
-    const ready = Phaser.Math.Clamp(this.alignMs / (ALIGN_REQUIRED_MS * this.timeScale()), 0, 1)
-    const radius = 240 + growth * 1_500 + ready * 220
-    glow(g, LIGHT_X, LIGHT_Y, radius, palette.licht, 0.2 + growth * 0.3 + ready * 0.16)
-    glow(g, LIGHT_X, LIGHT_Y, radius * 0.35, 0xfff8e4, 0.24 + growth * 0.34)
-    g.fillStyle(0xfffdf2, 0.75 + ready * 0.25)
-    g.fillCircle(LIGHT_X, LIGHT_Y, 16 + Math.sin(time * 0.0015) * 3 + growth * 26)
-    if (ready > 0.05 && !this.aligned) {
-      g.lineStyle(2.5, 0xf6e9c6, ready * 0.4)
-      g.lineBetween(this.player.x, this.player.y, LIGHT_X, LIGHT_Y)
-    }
+    const radius = 260 + growth * 1_600
+    glow(g, LIGHT_X, LIGHT_Y, radius, palette.licht, 0.2 + growth * 0.34, 14)
+    glow(g, LIGHT_X, LIGHT_Y, radius * 0.34, 0xfff8e4, 0.26 + growth * 0.36, 12)
+    g.fillStyle(0xfffdf2, 0.8)
+    g.fillCircle(LIGHT_X, LIGHT_Y, 18 + Math.sin(time * 0.0015) * 3 + growth * 30)
   }
 
-  /** Die eigene Gestalt mit den Kerben dessen, was sie getragen hat. */
-  private drawSelf(g: Phaser.GameObjects.Graphics, time: number, dim: number): void {
-    const strength = 1 - dim * 0.4
-    self(g, this.player.x, this.player.y, time, 1 - dim * 0.25, strength)
-
-    this.carried.forEach((facet, index) => {
-      const station = STATIONS.find((entry) => entry.facet === facet)
-      const angle = -Math.PI / 2 + (index / STATIONS.length) * Math.PI * 2
-      const mx = this.player.x + Math.cos(angle) * 34
-      const my = this.player.y + Math.sin(angle) * 34
-      const lit = index < this.litMarks
-      if (lit) {
-        glow(g, mx, my, 68, station?.color ?? palette.licht, 0.42)
-        g.fillStyle(station?.color ?? palette.licht, 0.95)
-        g.fillCircle(mx, my, 6.5)
-      } else {
-        g.fillStyle(0x1a1620, 0.9)
-        g.fillCircle(mx, my, 6)
-        g.lineStyle(1.6, station?.color ?? 0x6d7269, 0.45)
-        g.strokeCircle(mx, my, 6)
-      }
-    })
-
-    if (this.canMove()) return
-    g.lineStyle(4, 0xf2e9c4, 0.9 * strength)
-    g.lineBetween(
-      this.player.x, this.player.y,
-      this.player.x + Math.cos(this.facing) * 52,
-      this.player.y + Math.sin(this.facing) * 52,
-    )
+  private drawSelf(g: Phaser.GameObjects.Graphics, time: number): void {
+    const strength = this.phase >= 4 ? 0.55 : 0.4 + this.reserve * 0.6
+    self(g, this.player.x, this.player.y, time, 1 - this.decay() * 0.2, strength)
+    // Der eigene Vorrat als Ring an der Gestalt — er ist die eigentliche Ressource.
+    if (this.phase >= 1 && this.phase < 4) {
+      g.lineStyle(5, palette.licht, 0.22 + this.reserve * 0.5)
+      g.beginPath()
+      g.arc(this.player.x, this.player.y, 26, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * this.reserve, false)
+      g.strokePath()
+      g.lineStyle(2, 0xd8cfa8, 0.22)
+      g.strokeCircle(this.player.x, this.player.y, this.reach())
+    }
   }
 }

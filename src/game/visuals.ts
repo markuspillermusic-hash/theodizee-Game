@@ -43,7 +43,7 @@ export function glow(
   layers = 0,
 ): void {
   // Zu wenige Schichten ergeben sichtbare Ringe. Die Zahl richtet sich deshalb nach dem Radius.
-  const steps = layers > 0 ? layers : Math.round(Phaser.Math.Clamp(radius / 14, 14, 40))
+  const steps = layers > 0 ? layers : Math.round(Phaser.Math.Clamp(radius / 24, 12, 22))
   for (let index = steps; index >= 1; index -= 1) {
     const t = index / steps
     // Quadratische Abnahme nach aussen; innen dicht, aussen fast nichts.
@@ -65,7 +65,7 @@ export function glowEllipse(
   intensity = 0.5,
   layers = 0,
 ): void {
-  const steps = layers > 0 ? layers : Math.round(Phaser.Math.Clamp(Math.max(width, height) / 14, 14, 40))
+  const steps = layers > 0 ? layers : Math.round(Phaser.Math.Clamp(Math.max(width, height) / 24, 12, 22))
   for (let index = steps; index >= 1; index -= 1) {
     const t = index / steps
     const alpha = intensity * Math.pow(1 - t, 2.1) * 0.9
