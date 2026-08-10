@@ -149,6 +149,27 @@ Zwei Voraussetzungen sind dafür im Code hinterlegt und gelten **nur** im Entwic
 geleert und jede Aufnahme schwarz wäre, sowie das Vite-Plugin, das die Bilder schreibt. Im
 Produktions- und Offline-Build entfällt beides.
 
+### Echter Browser mit laufender Bildschleife
+
+Für Bewegung, Übergänge und die Oberfläche ausserhalb des Canvas reicht das Handtakten nicht.
+`scripts/qa.mjs` startet Chromium über Playwright, lässt das Spiel normal laufen, besetzt nur die
+Steuerung und nimmt ganze Bildschirme auf:
+
+```powershell
+npm.cmd run dev
+npm.cmd run qa -- --state Level04 --seconds 66 --shots 26,50,54,58,62
+npm.cmd run qa -- --state Level06 --every 4 --seconds 40 --video
+```
+
+Optionen: `--state`, `--seconds`, `--shots` (Sekunden, kommagetrennt), `--every` (dichte Reihe),
+`--label`, `--out`, `--video`, `--url`. Ausgegeben werden die erreichte Szene, die Bildrate, die
+Texte der Oberfläche, die Bildpfade und alle Konsolenfehler. Die Steuerungsbots je Abschnitt stehen
+oben in `scripts/qa.mjs`.
+
+Die Bildrate liegt im Headless-Betrieb bei etwa 25 Bildern je Sekunde, weil dort ohne
+Grafikbeschleunigung gezeichnet wird. Für die Beurteilung von Aufbau und Lesbarkeit genügt das; für
+Aussagen über Flüssigkeit ist weiterhin der Beamer massgeblich.
+
 `docs/qa/` ist nicht versioniert. Aufnahmen, die als Beleg dienen sollen, gehören in einen datierten
 Ordner unter `docs/`.
 

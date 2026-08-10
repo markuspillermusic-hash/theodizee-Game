@@ -84,6 +84,58 @@ export class QaHarness {
     return playable[playable.length - 1] ?? running[running.length - 1] ?? null
   }
 
+  /**
+   * Echtzeitbetrieb mit laufender Bildschleife. Anders als `run` wird hier nichts von Hand
+   * getaktet — das Spiel läuft normal, und nur die Steuerung wird von aussen besetzt. Gedacht für
+   * einen echten Browser, in dem Bewegung und Übergänge beurteilt werden sollen.
+   *
+   * Die Bots kommen als Quelltext herein, weil sie aus einem anderen Prozess stammen.
+   */
+  live(spec: { state: GameStateKey; bots?: Record<string, string> }): void {
+    const factories = new Map<string, BotFactory>()
+    Object.entries(spec.bots ?? {}).forEach(([key, source]) => {
+      factories.set(key, new Function(`return (${source})`)() as BotFactory)
+    })
+
+    let installedOn: string | null = null
+    let pressPending = false
+    let botFn: ((x: number, y: number) => BotInput) | null = null
+
+    const attach = (): void => {
+      const scene = this.activeScene()
+      const key = scene?.scene.key ?? null
+      if (!scene || !key || installedOn === key) return
+      installedOn = key
+      const briefing = scene.briefing as { destroy?: () => void } | undefined
+      briefing?.destroy?.()
+      const manager = scene.inputManager as Record<string, unknown> | undefined
+      if (!manager) return
+      const factory = factories.get(key)
+      if (!factory) {
+        manager.getVector = () => ({ x: 0, y: 0, active: false })
+        manager.justActionDown = () => false
+        manager.isActionDown = () => false
+        return
+      }
+      botFn = factory(scene as Record<string, unknown>)
+      manager.getVector = (x: number, y: number) => {
+        const value = botFn ? botFn(x, y) : { x: 0, y: 0 }
+        pressPending = Boolean(value.press)
+        return { x: value.x, y: value.y, active: value.active ?? (value.x !== 0 || value.y !== 0) }
+      }
+      manager.justActionDown = () => {
+        const pressed = pressPending
+        pressPending = false
+        return pressed
+      }
+      manager.isActionDown = () => false
+    }
+
+    this.game.loop.wake()
+    this.app.startState(spec.state)
+    this.game.events.on('poststep', attach)
+  }
+
   /** Ein Bild aus dem Canvas holen und beim Dev-Server ablegen. */
   async shot(name: string): Promise<string> {
     const canvas = this.game.canvas

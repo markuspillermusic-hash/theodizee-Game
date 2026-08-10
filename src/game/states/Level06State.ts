@@ -56,6 +56,7 @@ export class Level06State extends TimedLevelScene {
   private activeMs = 0
   private stillMs = 0
   private sampleClock = 0
+  private layerLabels: Phaser.GameObjects.Text[] = []
   private objectiveHud!: ObjectiveHud
   private goal!: GoalTracker
 
@@ -85,6 +86,11 @@ export class Level06State extends TimedLevelScene {
     this.stillMs = 0
     this.sampleClock = 0
     this.graphics = this.add.graphics()
+    // Beschriftete Leiste: Ohne Namen sieht man zwar, dass etwas wegfaellt, aber nicht was.
+    this.layerLabels.forEach((label) => label.destroy())
+    this.layerLabels = LAYERS.map((name, index) => this.add.text(224, 292 + (LAYERS.length - 1 - index) * 34, name.toUpperCase(), {
+      fontFamily: 'Arial, sans-serif', fontSize: '17px', color: '#cfd6cb',
+    }).setDepth(30).setAlpha(0))
     this.objectiveHud = new ObjectiveHud(this)
     this.goal = new GoalTracker(this.objectiveHud, { label: 'Erinnern', target: MEMORY_TARGET })
     this.cameras.main.setBackgroundColor(0x070709)
@@ -292,16 +298,27 @@ export class Level06State extends TimedLevelScene {
 
   /** Die Anzeige der Schichten macht den Rückbau lesbar, ohne dass ein Satz ihn erklären muss. */
   private drawLayers(g: Phaser.GameObjects.Graphics): void {
-    if (this.turningPointAt < 0) return
+    if (this.turningPointAt < 0) {
+      this.layerLabels.forEach((label) => label.setAlpha(0))
+      return
+    }
     const x = 92
     let y = 300
     for (let index = LAYERS.length - 1; index >= 0; index -= 1) {
       const alive = this.layerAlive(index)
-      g.fillStyle(alive ? (index === 0 ? 0xe8b969 : 0xcfd6cb) : 0x4a4f48, alive ? 0.8 : 0.35)
+      const last = index === 0
+      g.fillStyle(alive ? (last ? 0xe8b969 : 0xcfd6cb) : 0x4a4f48, alive ? 0.85 : 0.3)
       g.fillRect(x, y, 116, 5)
+      const label = this.layerLabels[index]
+      if (label) {
+        label.setY(y - 11)
+        label.setAlpha(alive ? (last ? 0.95 : 0.7) : 0.28)
+        label.setColor(alive && last ? '#f0cd8a' : '#cfd6cb')
+      }
       if (!alive) {
-        g.lineStyle(2, 0x6d7269, 0.6)
+        g.lineStyle(2, 0x6d7269, 0.55)
         g.lineBetween(x - 8, y + 2, x + 124, y + 2)
+        if (label) g.lineBetween(label.x - 4, y + 2, label.x + label.width + 4, y + 2)
       }
       y += 34
     }

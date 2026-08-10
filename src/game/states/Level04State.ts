@@ -400,8 +400,15 @@ export class Level04State extends TimedLevelScene {
       const x = Phaser.Math.Linear(ember.fromX, ember.toX, local)
       const y = Phaser.Math.Linear(ember.fromY, ember.toY, local)
       // Bahn und Einschlagstelle müssen vor dem Einschlag lesbar sein. Sonst ist Schützen Glück.
-      g.lineStyle(assistance >= 1 ? 2.4 : 1.8, 0xc97b49, 0.5)
-      g.lineBetween(ember.fromX, ember.fromY, ember.toX, ember.toY)
+      // Nur das letzte Stueck der Bahn zeigen. Ganze Diagonalen ueber den Bildschirm verstellen
+      // die Szene, ohne mehr Information zu geben.
+      const tail = 0.72
+      g.lineStyle(assistance >= 1 ? 2.4 : 1.8, 0xc97b49, 0.45)
+      g.lineBetween(
+        Phaser.Math.Linear(ember.fromX, ember.toX, tail),
+        Phaser.Math.Linear(ember.fromY, ember.toY, tail),
+        ember.toX, ember.toY,
+      )
       g.lineStyle(assistance >= 1 ? 4 : 3, 0xc97b49, 0.4 + local * 0.45)
       g.strokeCircle(ember.shieldX, ember.shieldY, this.shieldRadius() * (1.6 - local * 0.6))
       g.fillStyle(0xc97b49, 0.16)
