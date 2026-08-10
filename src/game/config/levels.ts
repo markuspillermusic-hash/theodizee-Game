@@ -27,7 +27,7 @@ export const levels: Record<string, LevelConfig> = {
     maximumDurationMs: 104_000, hintTimesMs: [22_000, 46_000, 74_000], echoId: 'echo-05', nextState: 'Echo05',
   },
   level06: {
-    id: 'level-06', title: 'Lass los', expectedDurationMs: 46_000, storyDurationMs: 72_000,
+    id: 'level-06', title: 'Lass los', expectedDurationMs: 42_000, storyDurationMs: 72_000,
     maximumDurationMs: 94_000, hintTimesMs: [20_000, 44_000, 68_000], nextState: 'FinaleReplay',
   },
 }

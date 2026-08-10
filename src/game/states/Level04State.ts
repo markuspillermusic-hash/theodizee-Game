@@ -28,6 +28,7 @@ const SHIELD_RADIUS = 82
 const SHIELD_OFFSET = 96
 const TELEGRAPH_MS = 1_350
 const WAVE_INTERVAL_MS = 5_600
+const FAREWELL_MS = 9_500
 
 /**
  * Bewahre · „Dazwischen".
@@ -172,12 +173,12 @@ export class Level04State extends TimedLevelScene {
       this.phase = 1
       this.phaseStartedAt = this.elapsedMs
       this.embers = []
-      this.services.ui.setInstruction('')
+      this.services.ui.setInstruction('Er geht hindurch.')
       this.services.ui.setHint('')
       this.services.audio.playMotif('familiar', 0.16)
       return
     }
-    if (this.phase === 1 && this.elapsedMs - this.phaseStartedAt >= 5_200 * scale) this.finishLevel()
+    if (this.phase === 1 && this.elapsedMs - this.phaseStartedAt >= FAREWELL_MS * scale) this.finishLevel()
   }
 
   /** Er geht in eigenem Tempo und wartet nicht. Man kann ihn nicht führen, nur begleiten. */
@@ -186,7 +187,7 @@ export class Level04State extends TimedLevelScene {
       this.ward.x = Math.min(EXIT_X, this.ward.x + this.wardSpeed() * delta)
       this.ward.y = 545 + Math.sin(this.ward.x * 0.0042) * 96
     } else {
-      this.ward.x += 0.9 * (delta / 16.667)
+      this.ward.x += 1.35 * (delta / 16.667)
     }
     this.route = this.ward.y < 545 ? 'upper' : 'lower'
   }
@@ -194,7 +195,8 @@ export class Level04State extends TimedLevelScene {
   private updatePlayer(delta: number): void {
     const input = this.inputManager.getVector(this.player.x, this.player.y)
     const frameScale = Phaser.Math.Clamp(delta / 16.667, 0.4, 2.4)
-    if (input.active && this.staggerMs <= 0) {
+    // In der Schlussphase reagiert die Figur nicht mehr. Es gibt nichts mehr zu tun.
+    if (input.active && this.staggerMs <= 0 && this.phase === 0) {
       this.velocity.x += input.x * 0.92 * frameScale
       this.velocity.y += input.y * 0.92 * frameScale
       const direction: Direction = input.x < -0.25 ? 'left' : input.x > 0.25 ? 'right' : 'center'
@@ -333,9 +335,11 @@ export class Level04State extends TimedLevelScene {
 
     this.drawEmbers(g, assistance)
 
-    const wardAlpha = this.phase === 1
-      ? Phaser.Math.Clamp(1 - (this.elapsedMs - this.phaseStartedAt) / (5_200 * this.services.getTimeScale()), 0.1, 1)
-      : 1
+    const farewell = this.phase === 1
+      ? Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (FAREWELL_MS * this.services.getTimeScale()), 0, 1)
+      : 0
+    // Er wird heller, je weiter er kommt; erst ganz am Ende verliert er sich im Licht.
+    const wardAlpha = this.phase === 1 ? Phaser.Math.Clamp(1.25 - farewell * 1.25, 0.05, 1) : 1
     const wardColor = this.wardIntegrity < 0.4 ? 0xd98b5c : 0x9ecdd0
     g.fillStyle(wardColor, 0.1 * wardAlpha)
     g.fillCircle(this.ward.x, this.ward.y, 54)
@@ -348,14 +352,25 @@ export class Level04State extends TimedLevelScene {
     g.fillStyle(0xc8eef0, 0.92 * wardAlpha)
     g.fillCircle(this.ward.x, this.ward.y, 8)
 
+    // Die Verbindung bleibt, bis er nicht mehr zu sehen ist.
+    if (this.phase === 1) {
+      g.lineStyle(2, 0xb5dfe0, (1 - farewell) * 0.3)
+      g.lineBetween(this.player.x, this.player.y, this.ward.x, this.ward.y)
+    }
+
     const stagger = this.staggerMs > 0
-    g.fillStyle(0xf0e9d9, 0.05 + this.goal.bufferValue * 0.07)
-    g.fillCircle(this.player.x, this.player.y, this.shieldRadius())
-    g.lineStyle(2, 0xe0c88e, 0.18 + this.goal.bufferValue * 0.26)
-    g.strokeCircle(this.player.x, this.player.y, this.shieldRadius())
-    g.fillStyle(stagger ? 0xb99a72 : 0xf0e9d9, 0.96)
-    g.fillCircle(this.player.x, this.player.y, 12)
-    g.lineStyle(3, 0xe0c88e, 0.72)
+    // Der Schutzkreis fällt in sich zusammen; das Eigene erlischt, nachdem es gereicht hat.
+    const shield = this.shieldRadius() * (1 - farewell)
+    const own = (1 - farewell) * this.goal.bufferValue
+    if (shield > 2) {
+      g.fillStyle(0xf0e9d9, 0.05 + own * 0.07)
+      g.fillCircle(this.player.x, this.player.y, shield)
+      g.lineStyle(2, 0xe0c88e, 0.18 + own * 0.26)
+      g.strokeCircle(this.player.x, this.player.y, shield)
+    }
+    g.fillStyle(stagger ? 0xb99a72 : 0xf0e9d9, Phaser.Math.Clamp(0.96 - farewell * 0.86, 0.08, 0.96))
+    g.fillCircle(this.player.x, this.player.y, 12 - farewell * 5)
+    g.lineStyle(3, 0xe0c88e, Phaser.Math.Clamp(0.72 - farewell * 0.68, 0.04, 0.72))
     g.strokeCircle(this.player.x, this.player.y, 24)
 
     const setback = this.goal.setbackFlash

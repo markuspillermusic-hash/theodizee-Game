@@ -75,12 +75,19 @@ Sprichwörter werden nicht verwendet.
 | 1 · Gras | Ausrichten | nur sich selbst |
 | 2 · Zebra | + Bewegen | den eigenen Körper |
 | 3 · Löwin | + Tragen | das Anvertraute |
-| 4 · Kind | + Abschirmen | den, den man schützt |
-| 5 · Bindung | + Antworten | das Gegenüber |
+| 4 · Mensch, Schützender | + Abschirmen | den, den man schützt |
+| 5 · Mensch, Geretteter | + Antworten | das Gegenüber |
 | 6 · Ende | — | alles, in umgekehrter Reihenfolge |
 
 Was zuletzt gelernt wurde, geht zuerst verloren. Der letzte mögliche Zug des Spiels ist derselbe wie
 der allererste: die Wendung zum Licht.
+
+**Wer ist man in Level 4 und 5?** Entschieden am 2026-08-10: In Level 4 ist man der **Schützende** —
+man stellt sich dazwischen, bleibt an der Schwelle zurück und erfährt nie, ob es sich gelohnt hat.
+Der Übergang gibt die Kamera an den Geschützten weiter; in Level 5 ist man **er**. Die Kette lautet
+damit: jemand gibt sich für dich hin → du bindest dich → du verlierst → du lässt los. Eine frühere
+Fassung dieser Tabelle nannte Level 4 „Kind"; das war ein Fehler und widersprach der gebauten
+Mechanik. Echos und Replay folgen der hier festgehaltenen Zuordnung.
 
 ---
 
@@ -118,10 +125,13 @@ Schutzbefohlener geht allein; Glut kommt in Wellen mit sichtbarer Vorwarnung. Di
 den eigenen Körper dazwischen zu bringen. Was dich trifft, kostet dich; was durchkommt, kostet ihn.
 Bewertet wird, wie viel **er** noch hat.
 
-**5 · Verbinde — „Zuruf und Antwort“.** Der Ruf reist sichtbar durch den Raum; man antwortet in dem
-Moment, in dem er ankommt. Nähe verkürzt die Laufzeit und ist damit selbst eine Entscheidung. Soll:
-acht Wechsel. Danach kommen die Rufe unregelmäßig, dann schwächer, dann nicht mehr. Man kann weiter
-rufen; es kommt nichts zurück.
+**5 · Verbinde — „Zuruf und Antwort“.** Der Ruf reist sichtbar durch den Raum und braucht dafür
+**immer gleich lang**, unabhängig davon, wo man steht. Eine frühere Fassung koppelte die Laufzeit an
+den Abstand; das bestrafte genau die naheliegende Handlung — hingehen — und die stillschweigende
+Regel, sich erst wieder zu entfernen, ergab keinen Sinn. Die Wahl des Gegenübers läuft ebenfalls über
+die Mechanik: Am Anfang rufen drei, und wem man zuerst antwortet, mit dem geht es weiter. Soll: acht
+Wechsel, dann werden die Rufe unregelmäßig, schwächer, bleiben aus. Man kann weiter rufen; es kommt
+nichts zurück — auch dann nicht, wenn man direkt danebensteht.
 
 **6 · Lass los — „Rückwärts“.** Fünf vertraute Muster sind buchstäblich die Dinge aus den vorigen
 Leveln. Dann fallen die Schichten in umgekehrter Reihenfolge weg, zuletzt bleibt nur Ausrichten. Ein

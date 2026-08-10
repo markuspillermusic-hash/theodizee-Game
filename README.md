@@ -80,7 +80,7 @@ Steuerung dargestellt.
 | 3 · Versorge | zwei Empfänger, eine Tragkraft, driftende Gefahrenfelder · Soll 8 | Versorgungen, Fracht, Rückschläge, Weg, Güte |
 | 4 · Bewahre | „Dazwischen": einen Schutzbefohlenen mit dem eigenen Körper decken · Soll 14 | Abgefangen, Durchgekommenes, sein Zustand, deine Kraft |
 | 5 · Verbinde | „Zuruf und Antwort": sichtbar reisender Ruf, Antwort beim Eintreffen · Soll 8 Wechsel | Treffer, Genauigkeit, Signal, Nähe, unbeantwortete Rufe |
-| 6 · Lass los | Muster halten statt antippen; danach messbarer Steuerungsabbau | Erinnerungen, Aktivität, Abbau, Loslassen |
+| 6 · Lass los | „Rückwärts": fünf Muster aus den vorigen Leveln halten, dann fallen die Schichten rückwärts weg | Erinnerungen, verlorene Schichten, Wendung zum Licht |
 | Übergang 4 → 5 | Schnittloser Wechsel: die Kamera folgt dem, der durchkommt | — |
 | Finale | fünfteilige Zusammenschau | Richtung, Spur, Weg und Beziehungsmotiv |
 

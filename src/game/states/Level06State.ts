@@ -6,59 +6,56 @@ import { GoalTracker } from '../systems/GoalTracker'
 import type { AssistanceLevel, Direction, LevelResult } from '../types'
 import { TimedLevelScene } from './TimedLevelScene'
 
+type MemoryKind = 'licht' | 'gras' | 'last' | 'gehueteter' | 'ruf'
+
 interface MemorySignal {
+  kind: MemoryKind
   x: number
   y: number
   color: number
-  shape: number
 }
 
-interface DelayedInput {
-  atMs: number
-  x: number
-  y: number
-  active: boolean
-}
+/** Die Schichten in der Reihenfolge, in der sie erworben wurden. Sie fallen rückwärts weg. */
+const LAYERS = ['Ausrichten', 'Bewegen', 'Tragen', 'Abschirmen', 'Antworten'] as const
 
-const MEMORY_TARGET = 7
-const MEMORY_POINTS: MemorySignal[] = [
-  { x: 470, y: 320, color: 0xe8b969, shape: 0 },
-  { x: 1480, y: 300, color: 0xb59ad8, shape: 1 },
-  { x: 960, y: 800, color: 0x79bfca, shape: 2 },
-  { x: 330, y: 780, color: 0xe8b969, shape: 1 },
-  { x: 1600, y: 790, color: 0xb59ad8, shape: 2 },
-  { x: 300, y: 540, color: 0x79bfca, shape: 0 },
-  { x: 1620, y: 520, color: 0xe8b969, shape: 2 },
-]
+const MEMORY_TARGET = 5
+const HOLD_MS = 640
+const LAYER_STEP_MS = 6_200
+const ALIGN_REQUIRED_MS = 1_700
+const LIGHT_X = 1_780
+const LIGHT_Y = 470
 
 /**
- * Lass los.
+ * Lass los · „Rückwärts".
  *
- * Der Abschnitt hat zwei Hälften. Zuerst wird aktiv gesammelt; die zuvor gewachsene Kontrolle
- * trägt. Nach dem Wendepunkt bauen Geschwindigkeit, Reaktion und Sichtfeld messbar ab — nicht als
- * Bild, sondern in der Steuerung. Dass das Erreichbare kleiner wird als das Gewollte, ist die
- * Aussage und darf nicht als Bedienfehler erscheinen.
+ * Die fünf vertrauten Muster sind buchstäblich die Dinge aus den vorigen Leveln: der Lichtstreifen,
+ * ein Grasbüschel, die Last, der Gehütete, die Rufwelle. Wer aufmerksam gespielt hat, erkennt sie
+ * ohne ein Wort.
+ *
+ * Nach dem Wendepunkt fallen die erworbenen Schichten in umgekehrter Reihenfolge weg — zuletzt
+ * gelernt, zuerst verloren. Übrig bleibt Ausrichten: das Erste, was der Halm in Level 1 konnte.
+ * Ein Licht erscheint, man wendet sich ihm zu. Damit schließt sich der Kreis in der Steuerung, und
+ * das Schlussbild braucht keinen erklärenden Satz.
+ *
+ * Nicht alle fünf Muster zu erreichen ist der Normalfall und darf nicht als Versagen erscheinen:
+ * Das Erreichbare wird kleiner als das Gewollte.
  */
 export class Level06State extends TimedLevelScene {
   private graphics!: Phaser.GameObjects.Graphics
-  private player = new Phaser.Math.Vector2(960, 570)
+  private player = new Phaser.Math.Vector2(960, 600)
   private velocity = new Phaser.Math.Vector2()
-  private drift = new Phaser.Math.Vector2()
-  private tension = 0.18
-  private decay = 0
-  private activeMs = 0
-  private releaseMs = 0
-  private currentReleaseMs = 0
-  private longestReleaseMs = 0
-  private sampleClock = 0
-  private requiredReleaseMs = 4_000
-  private released = false
-  private lastChannel = -1
-  private memoriesVisited = new Set<number>()
-  private releasePhaseStarted = false
-  private turningPointAt = -1
-  private inputHistory: DelayedInput[] = []
+  private facing = -Math.PI / 2
+  private memories: MemorySignal[] = []
   private memoryHold: number[] = []
+  private visited = new Set<number>()
+  private turningPointAt = -1
+  private layersLost = 0
+  private alignMs = 0
+  private aligned = false
+  private lightAt = -1
+  private activeMs = 0
+  private stillMs = 0
+  private sampleClock = 0
   private objectiveHud!: ObjectiveHud
   private goal!: GoalTracker
 
@@ -67,32 +64,32 @@ export class Level06State extends TimedLevelScene {
   }
 
   create(): void {
-    this.player.set(960, 570)
+    this.player.set(960, 600)
     this.velocity.set(0, 0)
-    this.drift.set(0, 0)
-    this.tension = 0.18
-    this.decay = 0
-    this.activeMs = 0
-    this.releaseMs = 0
-    this.currentReleaseMs = 0
-    this.longestReleaseMs = 0
-    this.sampleClock = 0
-    this.requiredReleaseMs = Math.max(500, 4_000 * this.services.getTimeScale())
-    this.released = false
-    this.lastChannel = -1
-    this.memoriesVisited.clear()
-    this.releasePhaseStarted = false
-    this.turningPointAt = -1
-    this.inputHistory = []
+    this.facing = -Math.PI / 2
+    this.memories = [
+      { kind: 'licht', x: 430, y: 330, color: 0xe8b969 },
+      { kind: 'gras', x: 1_500, y: 330, color: 0x9eb77f },
+      { kind: 'last', x: 340, y: 780, color: 0xd9a25f },
+      { kind: 'gehueteter', x: 1_560, y: 790, color: 0x9ecdd0 },
+      { kind: 'ruf', x: 960, y: 250, color: 0xb59ad8 },
+    ]
     this.memoryHold = []
+    this.visited.clear()
+    this.turningPointAt = -1
+    this.layersLost = 0
+    this.alignMs = 0
+    this.aligned = false
+    this.lightAt = -1
+    this.activeMs = 0
+    this.stillMs = 0
+    this.sampleClock = 0
     this.graphics = this.add.graphics()
     this.objectiveHud = new ObjectiveHud(this)
-    this.goal = new GoalTracker(this.objectiveHud, {
-      label: 'Erinnern', target: MEMORY_TARGET, bufferLabel: 'Kontrolle',
-    })
-    this.cameras.main.setBackgroundColor(0x060609)
-    this.beginTimedLevel('Level06', levels.level06, 'AUSSCHNITT · 06', 'Suche die vertrauten Muster.', 'release', {
-      goal: 'Sammle so viele vertraute Muster wie möglich. Halte am Ende still.',
+    this.goal = new GoalTracker(this.objectiveHud, { label: 'Erinnern', target: MEMORY_TARGET })
+    this.cameras.main.setBackgroundColor(0x070709)
+    this.beginTimedLevel('Level06', levels.level06, 'AUSSCHNITT · 06', 'Such die vertrauten Muster.', 'release', {
+      goal: 'Halte die vertrauten Muster noch einmal fest, solange du es kannst.',
       controls: 'WASD / Pfeiltasten · Maus oder Berührung',
     })
   }
@@ -103,36 +100,29 @@ export class Level06State extends TimedLevelScene {
     if (this.finished || progress < 0) return
     this.goal.advance(delta)
     this.updateDecay(delta, progress)
-    this.updateMemoryCollection(time, delta)
-    this.updateControl(delta, progress)
-    this.updateChannelCue(progress)
-    this.drawWorld(time, progress)
-    if (this.currentReleaseMs >= this.requiredReleaseMs) {
-      this.released = true
-      this.goal.setValue(this.goal.target)
-      this.finishLevel()
-    }
+    this.updateMemories(delta)
+    this.updateControl(delta)
+    this.updateAlignment(delta)
+    this.drawWorld(time)
   }
 
   protected applyHint(level: AssistanceLevel): void {
     this.services.setAssistance(level)
-    if (level === 1) this.services.ui.setHint(this.releasePhaseStarted ? 'Vier Sekunden keine Taste und keine Bewegung.' : 'Unbesuchte Muster leuchten stärker.')
-    if (level === 2) this.services.ui.setHint(this.releasePhaseStarted ? 'Vier Sekunden keine Taste und keine Bewegung.' : 'Eine Linie zeigt zum nächsten Muster.')
-    if (level === 3) this.services.ui.setHint(this.releasePhaseStarted ? 'Der Ruhefortschritt wird groß angezeigt.' : 'Der Abbau verlangsamt sich.')
+    if (level === 1) this.services.ui.setHint(this.lightAt >= 0 ? 'Wende dich dem Licht zu.' : 'Halte ein Muster kurz fest.')
+    if (level === 2) this.services.ui.setHint(this.lightAt >= 0 ? 'Wende dich dem Licht zu.' : 'Eine Linie zeigt zum nächsten Muster.')
+    if (level === 3) this.services.ui.setHint(this.lightAt >= 0 ? 'Der Bogen zum Licht wird weit.' : 'Der Abbau verlangsamt sich.')
   }
 
   protected collectResult(): LevelResult {
     return {
-      choices: { released: this.released, heldOn: this.activeMs > this.releaseMs },
+      choices: { released: this.aligned, heldOn: this.activeMs > this.stillMs },
       metrics: {
-        goalCount: this.memoriesVisited.size,
-        goalTarget: MEMORY_TARGET,
+        memoriesVisited: this.visited.size,
+        memoryTarget: MEMORY_TARGET,
+        layersLost: this.layersLost,
+        alignedToLight: this.aligned ? 1 : 0,
         activeRatio: this.elapsedMs ? this.activeMs / this.elapsedMs : 0,
-        releaseMs: this.releaseMs,
-        longestReleaseMs: this.longestReleaseMs,
-        finalTension: this.tension,
-        finalDecay: this.decay,
-        memoriesVisited: this.memoriesVisited.size,
+        gradeScore: this.visited.size >= 4 ? 2 : this.visited.size >= 2 ? 1 : 0,
       },
     }
   }
@@ -140,213 +130,291 @@ export class Level06State extends TimedLevelScene {
   protected afterLevelFinished(): void {
     this.services.audio.stopAmbient(0.8)
     this.services.ui.setScene('')
-    this.cameras.main.fadeOut(1_050, 255, 255, 245)
+    this.cameras.main.fadeOut(1_400, 255, 255, 245)
     const testMode = this.services.getStatus().testMode
-    this.time.delayedCall(testMode ? 380 : 1_150, () => this.scene.start('FinaleReplay'))
+    this.time.delayedCall(testMode ? 380 : 1_500, () => this.scene.start('FinaleReplay'))
+  }
+
+  private timeScale(): number {
+    return this.services.getTimeScale()
+  }
+
+  private canMove(): boolean {
+    return this.layersLost < 4
+  }
+
+  private layerAlive(index: number): boolean {
+    // LAYERS[0] ist Ausrichten und bleibt immer. Verloren wird von hinten.
+    return index < LAYERS.length - this.layersLost
   }
 
   /**
-   * Wendepunkt und Abbau. Vor dem Wendepunkt ist Aktivität die richtige Strategie, danach nicht
-   * mehr — reines Nichtstun ab Levelstart bleibt in beiden Hälften die schlechteste Wahl.
+   * Wendepunkt und Rückbau. Vor dem Wendepunkt trägt die gewachsene Kontrolle; danach fällt alle
+   * 4,6 Sekunden eine Schicht weg — in der Reihenfolge, in der sie erworben wurde, von hinten.
    */
   private updateDecay(delta: number, progress: number): void {
-    const scale = this.services.getTimeScale()
     if (this.turningPointAt < 0) {
-      if (this.memoriesVisited.size >= 3 || progress >= 0.34) {
+      if (this.visited.size >= 4 || progress >= 0.4) {
         this.turningPointAt = this.elapsedMs
         this.services.ui.setInstruction('Nimm mit, was noch geht.')
         this.services.audio.playMotif('release', 0.18)
       }
-      this.goal.resetBuffer(1)
       return
     }
-    const span = 21_000 * scale * (this.hintManager.getLevel() >= 3 ? 1.5 : 1)
-    this.decay = Phaser.Math.Clamp((this.elapsedMs - this.turningPointAt) / span, 0, 1)
-    this.goal.resetBuffer(1 - this.decay)
+    const step = LAYER_STEP_MS * this.timeScale() * (this.hintManager.getLevel() >= 3 ? 1.5 : 1)
+    const lost = Math.min(4, Math.floor((this.elapsedMs - this.turningPointAt) / step))
+    if (lost === this.layersLost) return
+    this.layersLost = lost
+    this.services.audio.pulse(74 - lost * 6, 0.06)
+    this.cameras.main.shake(220, 0.003)
+    if (this.layersLost >= 4 && this.lightAt < 0) this.enterLight()
     void delta
   }
 
-  private updateControl(delta: number, progress: number): void {
-    const raw = this.inputManager.getVector(this.player.x, this.player.y)
-    const frameScale = Phaser.Math.Clamp(delta / 16.667, 0.4, 2.4)
-
-    // Verzögerte Eingabe: Der Befehl kommt an, nur später. Das ist Abbau, nicht Ruckeln.
-    this.inputHistory.push({ atMs: this.elapsedMs, x: raw.x, y: raw.y, active: raw.active })
-    const lagMs = this.decay * 420 * this.services.getTimeScale()
-    while (this.inputHistory.length > 2 && this.inputHistory[1].atMs <= this.elapsedMs - lagMs) this.inputHistory.shift()
-    const input = this.inputHistory[0]
-
-    // Die Abdrift ist nicht die Bewegung des Spielers. Wuerde sie mitzaehlen, laege die
-    // Geschwindigkeit im Beharrungszustand bei 0,41 x Abbau und damit dauerhaft ueber der
-    // Schwelle: Die Ruhephase waere nicht gewinnbar.
-    const ownMotion = Math.max(0, this.velocity.length() - this.drift.length() * 5)
-    const active = raw.active || this.inputManager.isActionDown() || ownMotion > 0.35
-    const canRelease = this.memoriesVisited.size >= MEMORY_TARGET || this.decay >= 0.86
-
-    if (canRelease && !this.releasePhaseStarted) {
-      this.releasePhaseStarted = true
-      this.currentReleaseMs = 0
-      this.goal.relabel('Ruhe', 1)
-      this.goal.setValue(0)
-      this.services.ui.setInstruction('Halte 4 Sekunden still.')
-      this.services.ui.setHint('Keine Taste und keine Bewegung.')
-      this.services.audio.playMotif('release', 0.2)
-    }
-
-    if (active) {
-      this.activeMs += delta
-      this.currentReleaseMs = Math.max(0, this.currentReleaseMs - delta * 0.55)
-      if (this.turningPointAt >= 0) this.tension = Phaser.Math.Clamp(this.tension + delta * 0.00032, 0, 1)
-      if (input.active) {
-        const power = Phaser.Math.Linear(0.52, 0.12, this.decay)
-        this.velocity.x += input.x * power * frameScale
-        this.velocity.y += input.y * power * frameScale
-      }
-      const direction: Direction = raw.x < -0.2 ? 'left' : raw.x > 0.2 ? 'right' : 'center'
-      this.services.telemetry.recordDirection(direction)
-    } else if (canRelease) {
-      this.releaseMs += delta
-      this.currentReleaseMs += delta
-      this.longestReleaseMs = Math.max(this.longestReleaseMs, this.currentReleaseMs)
-      this.tension = Phaser.Math.Clamp(this.tension - delta * 0.00042, 0, 1)
-      this.goal.setValue(this.currentReleaseMs >= this.requiredReleaseMs ? 1 : 0)
-    } else {
-      this.currentReleaseMs = 0
-      this.tension = Phaser.Math.Clamp(this.tension - delta * 0.00008, 0.08, 1)
-    }
-
-    // Abdrift: Die Richtung gehört zunehmend nicht mehr einem selbst.
-    if (this.decay > 0) {
-      const angle = Math.sin(this.elapsedMs * 0.00035) * 2.4 + Math.cos(this.elapsedMs * 0.00021) * 1.7
-      this.drift.set(Math.cos(angle), Math.sin(angle)).scale(this.decay * 0.09 * frameScale)
-      this.velocity.add(this.drift)
-    }
-
-    const maxSpeed = Phaser.Math.Linear(4.2, 1.5, this.decay)
-    this.velocity.scale(Math.pow(raw.active ? 0.91 : 0.82, frameScale)).limit(maxSpeed)
-    this.player.x = Phaser.Math.Clamp(this.player.x + this.velocity.x * frameScale, 250, 1670)
-    this.player.y = Phaser.Math.Clamp(this.player.y + this.velocity.y * frameScale, 240, 840)
-
-    this.sampleClock += delta
-    if (this.sampleClock >= 120) {
-      this.services.telemetry.sample((this.player.x - 960) / 680, this.velocity.length() / 8, !active, this.sampleClock)
-      this.sampleClock = 0
-    }
-    void progress
+  private enterLight(): void {
+    this.lightAt = this.elapsedMs
+    this.velocity.set(0, 0)
+    this.goal.relabel('Ausrichten', 1)
+    this.goal.setValue(0)
+    this.services.ui.setInstruction('Wende dich dem Licht zu.')
+    this.services.ui.setHint('')
+    this.services.audio.playMotif('release', 0.24)
   }
 
-  private updateChannelCue(progress: number): void {
-    const channel = Math.min(4, Math.floor(progress * 5))
-    if (channel === this.lastChannel) return
-    this.lastChannel = channel
-    if (channel > 0) this.services.audio.playMotif('release', 0.22)
-  }
-
-  /**
-   * Ein Muster wird nicht angetippt, sondern kurz gehalten. Unter Abdrift und wachsender
-   * Verzögerung ist genau das die Aufgabe: etwas festhalten, das nicht stillhält.
-   */
-  private updateMemoryCollection(time: number, delta: number): void {
-    if (this.releasePhaseStarted) return
-    const signals = this.getFamiliarSignals(time)
-    const reach = Phaser.Math.Linear(72, 40, this.decay)
-    const required = 620 * this.services.getTimeScale()
-    signals.forEach((signal, index) => {
-      if (this.memoriesVisited.has(index)) return
+  private updateMemories(delta: number): void {
+    if (this.lightAt >= 0) return
+    const reach = Phaser.Math.Linear(74, 42, this.layersLost / 4)
+    const required = HOLD_MS * this.timeScale()
+    this.memories.forEach((memory, index) => {
+      if (this.visited.has(index)) return
       const held = this.memoryHold[index] ?? 0
-      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, signal.x, signal.y) > reach) {
+      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, memory.x, memory.y) > reach) {
         this.memoryHold[index] = Math.max(0, held - delta * 1.4)
         return
       }
-      const next = held + delta
+      // Ab dem Verlust von „Tragen" gleitet weg, was man festhalten will.
+      const grip = this.layerAlive(2) ? 1 : 0.35
+      const next = held + delta * grip
       this.memoryHold[index] = next
       if (next < required) return
-      this.memoriesVisited.add(index)
-      this.services.audio.pulse(168 + index * 22, 0.045)
+      this.visited.add(index)
+      this.services.audio.pulse(168 + index * 22, 0.05)
       this.goal.add(1)
     })
   }
 
-  private memoryHoldRatio(index: number): number {
-    const required = 620 * this.services.getTimeScale()
-    return Phaser.Math.Clamp((this.memoryHold[index] ?? 0) / required, 0, 1)
+  private holdRatio(index: number): number {
+    return Phaser.Math.Clamp((this.memoryHold[index] ?? 0) / (HOLD_MS * this.timeScale()), 0, 1)
   }
 
-  private drawWorld(time: number, progress: number): void {
+  private updateControl(delta: number): void {
+    const input = this.inputManager.getVector(this.player.x, this.player.y)
+    const frameScale = Phaser.Math.Clamp(delta / 16.667, 0.4, 2.4)
+    if (input.active) this.activeMs += delta
+    else this.stillMs += delta
+
+    if (input.active) {
+      const direction: Direction = input.x < -0.2 ? 'left' : input.x > 0.2 ? 'right' : 'center'
+      this.services.telemetry.recordDirection(direction)
+    }
+
+    if (this.canMove()) {
+      const power = Phaser.Math.Linear(0.62, 0.2, this.layersLost / 4)
+      if (input.active) {
+        this.velocity.x += input.x * power * frameScale
+        this.velocity.y += input.y * power * frameScale
+      }
+      const maxSpeed = Phaser.Math.Linear(4.6, 1.5, this.layersLost / 4)
+      this.velocity.scale(Math.pow(input.active ? 0.92 : 0.84, frameScale)).limit(maxSpeed)
+      this.player.x = Phaser.Math.Clamp(this.player.x + this.velocity.x * frameScale, 240, 1_660)
+      this.player.y = Phaser.Math.Clamp(this.player.y + this.velocity.y * frameScale, 220, 880)
+      if (this.velocity.lengthSq() > 0.05) this.facing = this.velocity.angle()
+    } else if (input.active) {
+      // Nur noch Ausrichten. Genau das, was der Halm in Level 1 konnte.
+      const target = Math.atan2(input.y, input.x)
+      this.facing = Phaser.Math.Angle.RotateTo(this.facing, target, 0.05 * frameScale)
+      this.velocity.set(0, 0)
+    }
+
+    this.sampleClock += delta
+    if (this.sampleClock >= 120) {
+      this.services.telemetry.sample((this.player.x - 960) / 680, this.velocity.length() / 8, !input.active, this.sampleClock)
+      this.sampleClock = 0
+    }
+  }
+
+  private updateAlignment(delta: number): void {
+    if (this.lightAt < 0 || this.aligned) return
+    // Am Ende geschieht es, ob man sich zuwendet oder nicht. Niemand bleibt hier haengen.
+    if (this.elapsedMs - this.lightAt >= 18_000 * this.timeScale()) {
+      this.aligned = false
+      this.services.audio.playMotif('release', 0.3)
+      this.finishLevel()
+      return
+    }
+    const toLight = Phaser.Math.Angle.Between(this.player.x, this.player.y, LIGHT_X, LIGHT_Y)
+    const spread = this.hintManager.getLevel() >= 3 ? 0.6 : 0.34
+    const off = Math.abs(Phaser.Math.Angle.Wrap(this.facing - toLight))
+    if (off <= spread) {
+      this.alignMs += delta
+      if (this.alignMs >= ALIGN_REQUIRED_MS * this.timeScale()) {
+        this.aligned = true
+        this.goal.setValue(1)
+        this.services.audio.playMotif('release', 0.3)
+        this.finishLevel()
+      }
+    } else this.alignMs = Math.max(0, this.alignMs - delta * 0.8)
+  }
+
+  private drawWorld(time: number): void {
     const g = this.graphics
     g.clear()
-    const fade = Phaser.Math.Clamp(progress * 0.5 + this.decay * 0.45 + this.tension * 0.12, 0, 0.96)
+    const dim = Phaser.Math.Clamp(this.layersLost / 4, 0, 1)
     g.fillStyle(Phaser.Display.Color.GetColor(
-      Math.round(23 - fade * 18), Math.round(20 - fade * 15), Math.round(31 - fade * 25),
+      Math.round(23 - dim * 17), Math.round(20 - dim * 15), Math.round(31 - dim * 24),
     ), 1)
     g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
 
-    const familiar = this.getFamiliarSignals(time)
-    const nextIndex = familiar.findIndex((_, index) => !this.memoriesVisited.has(index))
-    if (!this.releasePhaseStarted && nextIndex >= 0 && this.hintManager.getLevel() >= 2) {
-      g.lineStyle(this.hintManager.getLevel() === 3 ? 5 : 3, familiar[nextIndex].color, 0.24)
-      g.lineBetween(this.player.x, this.player.y, familiar[nextIndex].x, familiar[nextIndex].y)
-    }
+    this.drawMemories(g, time)
+    this.drawLayers(g)
+    if (this.lightAt >= 0) this.drawLight(g, time)
+    this.drawPlayer(g, time, dim)
 
-    familiar.forEach((signal, index) => {
-      const visited = this.memoriesVisited.has(index)
-      // Unerreichte Muster verblassen mit dem Abbau; erreichte bleiben als Verbindung stehen.
-      const alpha = visited ? 0.78 : Phaser.Math.Clamp(0.52 - this.decay * 0.4, 0.05, 0.52)
-      const pulse = 1 + Math.sin(time * 0.002 + index) * 0.12
-      g.lineStyle(visited ? 5 : 3, signal.color, alpha)
-      if (signal.shape === 0) g.strokeCircle(signal.x, signal.y, 24 * pulse)
-      else if (signal.shape === 1) g.strokePoints([
-        new Phaser.Geom.Point(signal.x, signal.y - 27), new Phaser.Geom.Point(signal.x + 27, signal.y),
-        new Phaser.Geom.Point(signal.x, signal.y + 27), new Phaser.Geom.Point(signal.x - 27, signal.y),
-      ], true)
-      else {
-        g.strokeCircle(signal.x, signal.y, 26 * pulse)
-        g.strokeCircle(signal.x, signal.y, 11 * pulse)
+    // Das Sichtfeld schrumpft mit jeder verlorenen Schicht.
+    const field = Phaser.Math.Linear(880, 250, dim)
+    g.lineStyle(3, 0xd9d7ca, 0.07)
+    g.strokeCircle(this.player.x, this.player.y, field)
+    const edge = Phaser.Math.Clamp(dim * 0.72, 0, 0.9)
+    g.fillStyle(0x000000, edge)
+    g.fillRect(0, 0, GAME_WIDTH, Math.max(0, (GAME_HEIGHT - field * 1.15) / 2))
+    g.fillRect(0, GAME_HEIGHT - Math.max(0, (GAME_HEIGHT - field * 1.15) / 2), GAME_WIDTH, Math.max(0, (GAME_HEIGHT - field * 1.15) / 2))
+  }
+
+  /** Die Anzeige der Schichten macht den Rückbau lesbar, ohne dass ein Satz ihn erklären muss. */
+  private drawLayers(g: Phaser.GameObjects.Graphics): void {
+    if (this.turningPointAt < 0) return
+    const x = 92
+    let y = 300
+    for (let index = LAYERS.length - 1; index >= 0; index -= 1) {
+      const alive = this.layerAlive(index)
+      g.fillStyle(alive ? (index === 0 ? 0xe8b969 : 0xcfd6cb) : 0x4a4f48, alive ? 0.8 : 0.35)
+      g.fillRect(x, y, 116, 5)
+      if (!alive) {
+        g.lineStyle(2, 0x6d7269, 0.6)
+        g.lineBetween(x - 8, y + 2, x + 124, y + 2)
       }
-      g.fillStyle(signal.color, alpha * 0.9)
-      g.fillCircle(signal.x, signal.y, 5)
-      const hold = visited ? 0 : this.memoryHoldRatio(index)
+      y += 34
+    }
+  }
+
+  private drawMemories(g: Phaser.GameObjects.Graphics, time: number): void {
+    const fadeUnreached = this.lightAt >= 0 ? 0 : Phaser.Math.Clamp(0.62 - this.layersLost * 0.14, 0.06, 0.62)
+    const next = this.memories.findIndex((_, index) => !this.visited.has(index))
+    if (this.lightAt < 0 && next >= 0 && this.hintManager.getLevel() >= 2) {
+      g.lineStyle(3, this.memories[next].color, 0.22)
+      g.lineBetween(this.player.x, this.player.y, this.memories[next].x, this.memories[next].y)
+    }
+    this.memories.forEach((memory, index) => {
+      const visited = this.visited.has(index)
+      const alpha = visited ? 0.8 : fadeUnreached
+      if (alpha <= 0.02) return
+      this.drawMemoryShape(g, memory, alpha, time, index)
+      const hold = visited ? 0 : this.holdRatio(index)
       if (hold > 0.02) {
-        g.lineStyle(6, signal.color, 0.75)
+        g.lineStyle(6, memory.color, 0.8)
         g.beginPath()
-        g.arc(signal.x, signal.y, 36, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * hold, false)
+        g.arc(memory.x, memory.y, 40, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * hold, false)
         g.strokePath()
       }
       if (visited) {
-        g.lineStyle(2, signal.color, 0.18)
-        g.lineBetween(this.player.x, this.player.y, signal.x, signal.y)
+        g.lineStyle(2, memory.color, 0.2)
+        g.lineBetween(this.player.x, this.player.y, memory.x, memory.y)
       }
     })
-
-    const fieldRadius = Phaser.Math.Clamp(900 - this.decay * 640 - this.tension * 190, 115, 900)
-    g.fillStyle(0xece9dc, 0.018)
-    g.fillCircle(this.player.x, this.player.y, fieldRadius)
-    g.lineStyle(3, 0xd9d7ca, 0.08 + (1 - this.tension) * 0.09)
-    g.strokeCircle(this.player.x, this.player.y, fieldRadius)
-
-    g.fillStyle(0xf3f0e6, Phaser.Math.Clamp(1 - this.decay * 0.35, 0.35, 1))
-    g.fillCircle(this.player.x, this.player.y, 9 - this.decay * 3)
-
-    if (this.releasePhaseStarted) {
-      const centerGlow = Phaser.Math.Clamp(this.currentReleaseMs / this.requiredReleaseMs, 0, 1)
-      g.fillStyle(0xf2edcf, centerGlow * 0.16)
-      g.fillCircle(GAME_WIDTH / 2, GAME_HEIGHT / 2, 170 + Math.sin(time * 0.001) * 18)
-      g.fillStyle(0xf5f1dc, centerGlow * 0.92)
-      g.fillCircle(GAME_WIDTH / 2, GAME_HEIGHT / 2, 5)
-    }
-
-    const edge = Phaser.Math.Clamp(this.decay * 0.6 + this.tension * 0.5, 0, 0.92)
-    g.fillStyle(0x000000, edge)
-    g.fillRect(0, 0, GAME_WIDTH, Math.max(0, (GAME_HEIGHT - fieldRadius * 1.1) / 2))
   }
 
-  private getFamiliarSignals(time: number): MemorySignal[] {
-    // Nach dem Wendepunkt ziehen die Muster zur Mitte und werden gleichzeitig schwerer erreichbar.
-    const pull = this.decay * 0.34
-    return MEMORY_POINTS.map((signal, index) => ({
-      ...signal,
-      x: Phaser.Math.Linear(signal.x + Math.sin(time * 0.0007 + index) * 34, 960, pull),
-      y: Phaser.Math.Linear(signal.y + Math.cos(time * 0.0009 + index * 1.4) * 28, 540, pull),
-    }))
+  /** Jedes Muster ist die Form aus seinem Level, nicht ein abstraktes Zeichen. */
+  private drawMemoryShape(
+    g: Phaser.GameObjects.Graphics, memory: MemorySignal, alpha: number, time: number, index: number,
+  ): void {
+    const pulse = 1 + Math.sin(time * 0.002 + index) * 0.1
+    const { x, y, color } = memory
+    g.fillStyle(color, alpha * 0.12)
+    g.fillCircle(x, y, 48 * pulse)
+    switch (memory.kind) {
+      case 'licht': {
+        g.fillStyle(color, alpha * 0.5)
+        g.fillTriangle(x - 16, y - 30, x + 16, y - 30, x + 8, y + 30)
+        g.fillStyle(0xf4f8d8, alpha)
+        g.fillCircle(x, y, 5)
+        break
+      }
+      case 'gras': {
+        g.lineStyle(3, color, alpha)
+        g.lineBetween(x, y + 22, x + 2, y - 24)
+        g.lineStyle(2, color, alpha * 0.7)
+        g.lineBetween(x - 10, y + 22, x - 14, y - 12)
+        g.lineBetween(x + 10, y + 22, x + 15, y - 10)
+        g.fillStyle(0xe6ddaa, alpha)
+        g.fillCircle(x + 2, y - 24, 4)
+        break
+      }
+      case 'last': {
+        g.lineStyle(4, color, alpha)
+        g.strokeEllipse(x, y, 62, 34)
+        g.fillStyle(color, alpha * 0.3)
+        g.fillEllipse(x, y, 44, 22)
+        break
+      }
+      case 'gehueteter': {
+        g.lineStyle(4, color, alpha)
+        g.strokeCircle(x, y, 22 * pulse)
+        g.fillStyle(0xc8eef0, alpha)
+        g.fillCircle(x, y, 7)
+        break
+      }
+      default: {
+        g.lineStyle(4, color, alpha)
+        g.beginPath()
+        g.arc(x, y, 30 * pulse, -1.1, 1.1, false)
+        g.strokePath()
+        g.lineStyle(2, color, alpha * 0.6)
+        g.beginPath()
+        g.arc(x, y, 46 * pulse, -0.9, 0.9, false)
+        g.strokePath()
+        break
+      }
+    }
+  }
+
+  private drawLight(g: Phaser.GameObjects.Graphics, time: number): void {
+    const grow = Phaser.Math.Clamp((this.elapsedMs - this.lightAt) / (4_000 * this.timeScale()), 0, 1)
+    const ready = Phaser.Math.Clamp(this.alignMs / (ALIGN_REQUIRED_MS * this.timeScale()), 0, 1)
+    for (let ring = 4; ring >= 0; ring -= 1) {
+      g.fillStyle(0xe8b969, (0.03 + ready * 0.05) * (1 + ring * 0.2))
+      g.fillCircle(LIGHT_X, LIGHT_Y, (60 + ring * 70) * grow)
+    }
+    g.fillStyle(0xf4f8d8, 0.5 + ready * 0.5)
+    g.fillCircle(LIGHT_X, LIGHT_Y, 10 + Math.sin(time * 0.002) * 2 + ready * 8)
+    if (ready > 0.02) {
+      g.lineStyle(3, 0xf2e9c4, ready * 0.5)
+      g.lineBetween(this.player.x, this.player.y, LIGHT_X, LIGHT_Y)
+    }
+  }
+
+  private drawPlayer(g: Phaser.GameObjects.Graphics, time: number, dim: number): void {
+    const radius = 10 - dim * 3
+    g.fillStyle(0xf3f0e6, 1 - dim * 0.35)
+    g.fillCircle(this.player.x, this.player.y, radius)
+    // Die Blickrichtung ist die letzte Fähigkeit und muss deshalb sichtbar sein.
+    const length = this.canMove() ? 26 : 46
+    g.lineStyle(this.canMove() ? 2 : 4, 0xf2e9c4, this.canMove() ? 0.4 : 0.9)
+    g.lineBetween(
+      this.player.x, this.player.y,
+      this.player.x + Math.cos(this.facing) * length,
+      this.player.y + Math.sin(this.facing) * length,
+    )
+    g.lineStyle(2, 0xd9d7ca, 0.16 + Math.sin(time * 0.002) * 0.04)
+    g.strokeCircle(this.player.x, this.player.y, radius + 12)
   }
 }
