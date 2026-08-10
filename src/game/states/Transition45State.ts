@@ -62,20 +62,22 @@ export class Transition45State extends BaseScene {
 
     // Die Welt zieht nach links, weil die Kamera mit ihm mitgeht.
     const shift = Phaser.Math.Easing.Sine.InOut(local) * 760
-    const wardX = 1_720 - shift + Phaser.Math.Easing.Sine.Out(local) * 520
+    const wardX = Phaser.Math.Linear(1_650 - shift * 0.2, GAME_WIDTH / 2, Phaser.Math.Easing.Sine.InOut(local))
     const wardY = 545
-    const playerX = 1_500 - shift
+    const playerX = 1_430 - shift * 1.4
     const brightness = Phaser.Math.Easing.Quadratic.In(local)
 
     g.fillGradientStyle(0x0a0908, 0x0a0908, 0x1c1512, 0x1c1512, 1)
     g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
 
     // Die Schwelle, jetzt von der anderen Seite
-    const thresholdX = 1_680 - shift
-    g.fillStyle(0xe8eadc, 0.16 + brightness * 0.3)
-    g.fillRect(thresholdX - 40, 200, 96, 620)
-    g.lineStyle(4, 0xe7e8d7, 0.5)
-    g.strokeRect(thresholdX - 40, 200, 96, 620)
+    const thresholdX = 1_580 - shift
+    for (let halo = 3; halo >= 0; halo -= 1) {
+      g.fillStyle(0xe8c98a, (0.06 + brightness * 0.12) * (1 + halo * 0.4))
+      g.fillRect(thresholdX - 46 - halo * 26, 280 - halo * 22, 92 + halo * 52, 540 + halo * 44)
+    }
+    g.fillStyle(0xf3e6c4, 0.4 + brightness * 0.5)
+    g.fillRect(thresholdX - 40, 280, 84, 540)
 
     // Der Zurückbleibende: verliert Licht, bleibt aber bis zuletzt sichtbar
     const leftBehind = Phaser.Math.Clamp(1 - local * 1.35, 0, 1)

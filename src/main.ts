@@ -6,7 +6,11 @@ const app = new GameApp()
 // Nur im Entwicklungsserver: Zugriff für Prüfskripte und Bildschirmaufnahmen.
 // Im Produktions- und Offline-Build ist `import.meta.env.DEV` falsch, der Zweig entfällt.
 if (import.meta.env.DEV) {
-  (window as unknown as Record<string, unknown>).__ausschnitt = app
+  const globals = window as unknown as Record<string, unknown>
+  globals.__ausschnitt = app
+  void import('./dev/qa').then(({ QaHarness }) => {
+    globals.__qa = new QaHarness(app)
+  })
 }
 
 if (import.meta.hot) {

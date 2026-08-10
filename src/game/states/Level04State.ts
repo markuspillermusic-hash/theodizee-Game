@@ -23,7 +23,7 @@ interface Ember {
 
 const SHIELD_TARGET = 14
 const WARD_START_X = 240
-const EXIT_X = 1720
+const EXIT_X = 1620
 const SHIELD_RADIUS = 82
 const SHIELD_OFFSET = 96
 const TELEGRAPH_MS = 1_350
@@ -187,7 +187,12 @@ export class Level04State extends TimedLevelScene {
       this.ward.x = Math.min(EXIT_X, this.ward.x + this.wardSpeed() * delta)
       this.ward.y = 545 + Math.sin(this.ward.x * 0.0042) * 96
     } else {
-      this.ward.x += 1.35 * (delta / 16.667)
+      // Im Abschied geht er nur noch wenige Schritte und verliert sich im Licht der Schwelle.
+      const local = Phaser.Math.Clamp(
+        (this.elapsedMs - this.phaseStartedAt) / (FAREWELL_MS * this.services.getTimeScale()), 0, 1,
+      )
+      this.ward.x = EXIT_X + 30 + Phaser.Math.Easing.Sine.Out(local) * 86
+      void delta
     }
     this.route = this.ward.y < 545 ? 'upper' : 'lower'
   }
@@ -311,18 +316,26 @@ export class Level04State extends TimedLevelScene {
     const assistance = this.assistance()
 
     // Rauch bleibt Atmosphäre. Die Gefahr in diesem Level ist die Glut, und die ist immer sichtbar.
-    for (let index = 0; index < 26; index += 1) {
-      const x = (index * 197 + time * 0.014) % (GAME_WIDTH + 260) - 130
-      const y = 170 + ((index * 113) % 700) + Math.sin(time * 0.0006 + index) * 40
-      g.fillStyle(0xb5aaa5, 0.02 + (index % 3) * 0.01)
-      g.fillCircle(x, y, 34 + (index % 5) * 20)
+    for (let index = 0; index < 16; index += 1) {
+      const x = (index * 233 + time * 0.012) % (GAME_WIDTH + 320) - 160
+      const y = 180 + ((index * 149) % 680) + Math.sin(time * 0.0005 + index) * 46
+      g.fillStyle(0xb5aaa5, 0.008 + (index % 3) * 0.004)
+      g.fillCircle(x, y, 90 + (index % 4) * 46)
     }
 
-    const glow = 0.16 + Math.sin(time * 0.003) * 0.04
-    g.fillStyle(0xe8eadc, glow)
-    g.fillRect(EXIT_X - 40, 200, 96, 620)
-    g.lineStyle(4, 0xe7e8d7, 0.5)
-    g.strokeRect(EXIT_X - 40, 200, 96, 620)
+    // Die Schwelle ist warmes Licht, kein Bauteil. Sie liegt unterhalb der Anzeige rechts oben.
+    const farewell = this.phase === 1
+      ? Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (FAREWELL_MS * this.services.getTimeScale()), 0, 1)
+      : 0
+    const glow = 0.2 + Math.sin(time * 0.003) * 0.05 + farewell * 0.5
+    for (let halo = 3; halo >= 0; halo -= 1) {
+      g.fillStyle(0xe8c98a, glow * 0.09 * (1 + halo * 0.4))
+      g.fillRect(EXIT_X - 46 - halo * 26, 280 - halo * 22, 92 + halo * 52, 540 + halo * 44)
+    }
+    g.fillStyle(0xf3e6c4, Phaser.Math.Clamp(glow, 0, 0.92))
+    g.fillRect(EXIT_X - 40, 280, 84, 540)
+    g.lineStyle(3, 0xf6efd8, 0.5 + farewell * 0.4)
+    g.strokeRect(EXIT_X - 40, 280, 84, 540)
 
     g.lineStyle(1, 0xcfd6cb, 0.14)
     g.beginPath()
@@ -335,9 +348,6 @@ export class Level04State extends TimedLevelScene {
 
     this.drawEmbers(g, assistance)
 
-    const farewell = this.phase === 1
-      ? Phaser.Math.Clamp((this.elapsedMs - this.phaseStartedAt) / (FAREWELL_MS * this.services.getTimeScale()), 0, 1)
-      : 0
     // Er wird heller, je weiter er kommt; erst ganz am Ende verliert er sich im Licht.
     const wardAlpha = this.phase === 1 ? Phaser.Math.Clamp(1.25 - farewell * 1.25, 0.05, 1) : 1
     const wardColor = this.wardIntegrity < 0.4 ? 0xd98b5c : 0x9ecdd0

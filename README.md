@@ -119,6 +119,39 @@ Im Entwicklungsserver mit `Strg + Umschalt + D` ein- oder ausblenden. Angezeigt 
 
 Der Shortcut wird im Produktionsbuild nicht registriert.
 
+## Prüfstrecke für Bildkontrolle
+
+In manchen Prüfumgebungen wird die Seite nicht zusammengesetzt. Dann feuert `requestAnimationFrame`
+nicht: Es läuft kein `update`, es wird nichts gezeichnet, Szenenwechsel bleiben in der Warteschlange
+stehen, und ein Screenshot von außen ist unmöglich.
+
+Der Entwicklungsserver löst das. `window.__qa` taktet Phasers Schleife von Hand — `game.step()`
+erledigt Warteschlange, Szenen-Update, Zeitgeber, Tweens und das Rendern in einem Aufruf. Danach
+wird das Canvas ausgelesen und über `POST /__qa/shot` als PNG unter `docs/qa/` abgelegt.
+
+```js
+await window.__qa.run({
+  state: 'Level04',
+  seconds: 70,
+  shots: [26, 50, 54, 58],          // Sekunden, zu denen ein Bild entsteht
+  label: 'kette',
+  bots: {                            // Steuerung je Szene, optional
+    Level04: (scene) => (x, y) => ({ x: 1, y: 0, active: true }),
+  },
+})
+```
+
+Zurück kommt die Liste der durchlaufenen Szenen, die Bildpfade, die Texte der Bedienoberfläche und
+der Zeitpunkt des Levelabschlusses. Ohne `bots` läuft der untätige Durchlauf.
+
+Zwei Voraussetzungen sind dafür im Code hinterlegt und gelten **nur** im Entwicklungsserver:
+`preserveDrawingBuffer` in der Renderkonfiguration, ohne das der WebGL-Puffer nach dem Zeichnen
+geleert und jede Aufnahme schwarz wäre, sowie das Vite-Plugin, das die Bilder schreibt. Im
+Produktions- und Offline-Build entfällt beides.
+
+`docs/qa/` ist nicht versioniert. Aufnahmen, die als Beleg dienen sollen, gehören in einen datierten
+Ordner unter `docs/`.
+
 ## Speicherung und Datenschutz
 
 Erfasst werden ausschließlich abstrakte Verhaltenswerte des gemeinsamen Durchlaufs. Es gibt keine

@@ -46,6 +46,10 @@ export class GameApp implements TeacherControlApi {
         antialias: true,
         roundPixels: false,
         powerPreference: 'high-performance',
+        // Nur im Entwicklungsserver: Ohne diese Option ist der WebGL-Puffer nach dem Zeichnen
+        // geleert und eine Aufnahme aus der Seite heraus bleibt schwarz. Kostet etwas Leistung,
+        // deshalb nicht im Auslieferungsstand.
+        preserveDrawingBuffer: import.meta.env.DEV,
       },
       scale: {
         mode: Phaser.Scale.FIT,
