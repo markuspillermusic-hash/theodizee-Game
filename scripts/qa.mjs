@@ -50,11 +50,9 @@ shots.sort((a, b) => a - b)
  */
 const BOTS = {
   Level01: `(s) => () => {
-    if (!s.waveActive()) return { x: 0, y: 0, active: false }
-    const reach = Math.max(0.62, Math.min(0.98, 0.62 + s.growth * 0.36))
-    const want = s.waveCentre() / reach
-    const diff = want - s.position
-    return { x: Math.abs(diff) < 0.03 ? 0 : Math.sign(diff), y: 0, active: true }
+    const reach = Math.max(0.25, Math.min(0.98, 0.2 + s.growth * 1.05))
+    const diff = s.lightCenter / reach - s.position
+    return { x: Math.abs(diff) < 0.02 ? 0 : Math.sign(diff), y: 0, active: true }
   }`,
   Level02: `(s) => (px, py) => {
     let best = null, bd = 1e9
