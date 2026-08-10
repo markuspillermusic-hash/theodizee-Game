@@ -371,15 +371,16 @@ export class Level02State extends TimedLevelScene {
           this.services.ui.setCaption('')
         }
       } else {
-        this.predator.x += 11.5 * frameScale
-        this.predator.y -= 0.7 * frameScale
+        this.predator.x += 2.4 * frameScale
+        this.predator.y -= 0.2 * frameScale
       }
       return
     }
 
     if (this.phase === 6) {
-      this.predator.x += 14 * frameScale
-      this.predator.y -= 2.2 * frameScale
+      // Eine Beute wird geschleppt, nicht getragen. Schwer und langsam.
+      this.predator.x += 2.1 * frameScale
+      this.predator.y -= 0.35 * frameScale
       this.player.set(this.predator.x - 112, this.predator.y + 48)
       this.energy = Math.max(0.04, this.energy - delta * 0.00035)
       return
@@ -407,8 +408,8 @@ export class Level02State extends TimedLevelScene {
         this.services.ui.setCaption('')
       }
     } else {
-      this.predator.x += 8 * frameScale
-      this.player.lerp(this.predator.clone().add(new Phaser.Math.Vector2(-105, 45)), 0.12 * frameScale)
+      this.predator.x += 1.6 * frameScale
+      this.player.lerp(this.predator.clone().add(new Phaser.Math.Vector2(-105, 45)), 0.05 * frameScale)
       this.energy = Math.max(0.04, this.energy - delta * 0.0002)
     }
   }

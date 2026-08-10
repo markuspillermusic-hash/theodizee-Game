@@ -54,7 +54,7 @@ export class Transition45State extends BaseScene {
     if (this.started) return
     this.started = true
     this.services.setStatus({ remainingMs: 0 })
-    this.scene.start('Level05')
+    this.scene.start('Echo04')
   }
 
   private draw(local: number): void {
@@ -102,7 +102,7 @@ export class Transition45State extends BaseScene {
     // Die Helligkeit übernimmt das Bild — in genau den Ton, aus dem Level 5 wieder aufblendet.
     vignette(g, 0.4)
     const wash = Phaser.Math.Clamp((local - 0.62) / 0.38, 0, 1)
-    g.fillStyle(0xe8ce9e, Phaser.Math.Easing.Quadratic.In(wash))
+    g.fillStyle(0xfffdf6, Phaser.Math.Easing.Quadratic.In(wash))
     g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
   }
 }

@@ -37,7 +37,8 @@ export abstract class ProceduralEchoState extends BaseScene {
     this.services.audio.startAmbient('echo')
     this.graphics = this.add.graphics()
     this.cameras.main.setBackgroundColor(0x020304)
-    this.cameras.main.fadeIn(600, 2, 5, 4)
+    // Der Rueckblick beginnt und endet im Licht: der Zustand zwischen zwei Leben.
+    this.cameras.main.fadeIn(1_100, 255, 255, 250)
     void this.services.video.play(this.variant).then((result) => this.services.setStatus({ videoStatus: result.reason }))
 
     this.events.on('teacher:complete', this.finishEcho, this)
@@ -187,7 +188,7 @@ export abstract class ProceduralEchoState extends BaseScene {
     this.finished = true
     this.services.video.skip()
     this.services.ui.setCaption('')
-    this.cameras.main.fadeOut(720, 1, 2, 2)
-    this.time.delayedCall(750, () => this.scene.start(this.nextState))
+    this.cameras.main.fadeOut(1_000, 255, 255, 250)
+    this.time.delayedCall(1_030, () => this.scene.start(this.nextState))
   }
 }

@@ -106,20 +106,23 @@ const BOTS = {
     return { x: 0, y: 0, active: false, press }
   }`,
   Level06: `(s) => (px, py) => {
-    if (s.lightAt >= 0) {
-      const a = Math.atan2(470 - py, 1780 - px)
+    let press = false
+    if (s.phase === 3) {
+      const a = Math.atan2(540 - py, 960 - px)
       return { x: Math.cos(a), y: Math.sin(a), active: true }
     }
-    let best = -1, bd = 1e9
-    s.memories.forEach((m, i) => {
-      if (s.visited.has(i)) return
-      const d = Math.hypot(m.x - px, m.y - py)
-      if (d < bd) { bd = d; best = i }
-    })
-    if (best < 0) return { x: 0, y: 0, active: false }
-    const m = s.memories[best]
-    const dx = m.x - px, dy = m.y - py, d = Math.hypot(dx, dy) || 1
-    return { x: d < 20 ? 0 : dx / d, y: d < 20 ? 0 : dy / d, active: d >= 20 }
+    if (s.phase === 2) return { x: 0, y: 0, active: false }
+    let tx = px + 200, ty = py
+    if (s.phase === 1) {
+      const st = s.station()
+      if (st.facet === 'verlust') { tx = s.companion.x; ty = s.companion.y }
+      else if (st.facet === 'schuld') { tx = st.x - 300; ty = st.y - 60 }
+      else if (st.facet === 'ohnmacht') { tx = st.x + 60; ty = st.y + 80 }
+      else { tx = st.x; ty = st.y; press = (s.elapsedMs % 2200) < 20 }
+    }
+    const dx = tx - px, dy = ty - py, d = Math.hypot(dx, dy) || 1
+    const a = d < 16 ? 0 : 1
+    return { x: dx / d * a, y: dy / d * a, active: a === 1, press }
   }`,
 }
 

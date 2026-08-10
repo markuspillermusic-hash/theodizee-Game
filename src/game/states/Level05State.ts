@@ -172,8 +172,11 @@ export class Level05State extends TimedLevelScene {
     const slow = this.hintManager.getLevel() >= 3 ? 1.3 : 1
     if (this.phase === 0) return 1_400 * scale * slow
     if (this.phase === 2) return (900 + ((this.fadingDelivered * 431) % 700)) * scale * slow
-    const eased = Phaser.Math.Linear(1_200, 780, Phaser.Math.Clamp(this.exchanges / this.exchangeTarget, 0, 1))
-    return eased * scale * slow
+    const eased = Phaser.Math.Linear(1_200, 760, Phaser.Math.Clamp(this.exchanges / this.exchangeTarget, 0, 1))
+    // Ab dem vierten Wechsel wird der Takt unregelmaessig. Wer das Muster kennt, muss trotzdem
+    // zuhoeren statt mitzuzaehlen.
+    const jitter = this.exchanges >= 3 ? 1 + Math.sin(this.exchanges * 2.399) * 0.3 : 1
+    return eased * jitter * scale * slow
   }
 
   private signals(): RelationSignal[] {
@@ -344,7 +347,8 @@ export class Level05State extends TimedLevelScene {
       this.exchanges += 1
       this.goal.setValue(this.exchanges)
       this.goal.fillBuffer(0.13)
-      this.nextCallAt = this.elapsedMs + 820 * scale
+      const pause = this.exchanges >= 3 ? 480 + ((this.exchanges * 613) % 900) : 820
+      this.nextCallAt = this.elapsedMs + pause * scale
     } else {
       this.fadingDelivered += 1
       this.goal.setValue(this.fadingDelivered)

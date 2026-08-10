@@ -5,7 +5,7 @@ import { levels } from '../config/levels'
 import { GoalTracker } from '../systems/GoalTracker'
 import type { AssistanceLevel, Direction, LevelResult } from '../types'
 import { TimedLevelScene } from './TimedLevelScene'
-import { dust, glowEllipse, ground, palette, self, vignette } from '../visuals'
+import { dust, glowEllipse, ground, palette, self, Sparks, vignette } from '../visuals'
 
 type Route = 'upper' | 'lower'
 
@@ -59,6 +59,7 @@ export class Level04State extends TimedLevelScene {
   private sampleClock = 0
   private route: Route = 'lower'
   private safetyNetApplied = false
+  private sparks = new Sparks()
   private objectiveHud!: ObjectiveHud
   private goal!: GoalTracker
 
@@ -276,8 +277,9 @@ export class Level04State extends TimedLevelScene {
     if (toShield <= this.shieldRadius()) {
       this.absorbed += 1
       this.goal.add(1)
+      // Aufgefangen heisst aufgenommen: ein warmer Ring an der eigenen Gestalt, kein Einschlag.
+      this.sparks.emit(this.player.x, this.player.y, palette.licht, 70, 520)
       this.services.audio.pulse(196 + Math.min(6, this.goal.value) * 12, 0.05)
-      this.cameras.main.shake(160, 0.004)
       if (this.goal.drainBuffer(0.19 * damageScale)) {
         this.staggerMs = 1_500 * this.services.getTimeScale()
         this.cameras.main.shake(340, 0.007)
@@ -289,8 +291,9 @@ export class Level04State extends TimedLevelScene {
     {
       this.throughHits += 1
       this.wardIntegrity = Math.max(0.1, this.wardIntegrity - 0.088 * damageScale)
+      this.sparks.emit(ember.toX, ember.toY, palette.gefahr, 120, 520)
       this.services.audio.pulse(62, 0.09)
-      this.cameras.main.shake(300, 0.006)
+      this.cameras.main.shake(320, 0.007)
     }
   }
 
@@ -373,6 +376,7 @@ export class Level04State extends TimedLevelScene {
     self(g, this.player.x, this.player.y, time, stagger ? 0.82 : 1,
       Phaser.Math.Clamp(1 - farewell * 0.9, 0.08, 1))
 
+    this.sparks.draw(g)
     vignette(g, 0.44)
     const setback = this.goal.setbackFlash
     if (setback > 0) {
@@ -388,8 +392,13 @@ export class Level04State extends TimedLevelScene {
       const local = Phaser.Math.Clamp(
         (this.elapsedMs - ember.spawnedAt) / Math.max(1, ember.impactAt - ember.spawnedAt), 0, 1,
       )
-      const x = Phaser.Math.Linear(ember.fromX, ember.toX, local)
-      const y = Phaser.Math.Linear(ember.fromY, ember.toY, local)
+      // Steht die Figur schon im Schutzbereich, zieht die Glut sichtbar zu ihr hin.
+      const caught = Phaser.Math.Distance.Between(
+        this.player.x, this.player.y, ember.shieldX, ember.shieldY,
+      ) <= this.shieldRadius()
+      const pull = caught ? Math.pow(local, 2.4) : 0
+      const x = Phaser.Math.Linear(Phaser.Math.Linear(ember.fromX, ember.toX, local), this.player.x, pull)
+      const y = Phaser.Math.Linear(Phaser.Math.Linear(ember.fromY, ember.toY, local), this.player.y, pull)
       // Bahn und Einschlagstelle müssen vor dem Einschlag lesbar sein. Sonst ist Schützen Glück.
       // Nur das letzte Stueck der Bahn zeigen. Ganze Diagonalen ueber den Bildschirm verstellen
       // die Szene, ohne mehr Information zu geben.
@@ -406,10 +415,10 @@ export class Level04State extends TimedLevelScene {
       g.fillCircle(ember.shieldX, ember.shieldY, this.shieldRadius() * 0.55)
       g.lineStyle(2, 0xc97b49, 0.3)
       g.lineBetween(ember.shieldX, ember.shieldY, ember.toX, ember.toY)
-      g.fillStyle(0xf0a76a, 0.95)
-      g.fillCircle(x, y, 11)
-      g.fillStyle(0xffe0b0, 0.5)
-      g.fillCircle(x, y, 5)
+      const heat = caught ? palette.licht : 0xf0a76a
+      glowEllipse(g, x, y, 60, 60, heat, caught ? 0.4 : 0.28)
+      g.fillStyle(heat, 0.95)
+      g.fillCircle(x, y, caught ? 11 - local * 4 : 11)
     })
   }
 }
