@@ -2,16 +2,15 @@ import type { ReplayClipVariant } from '../types'
 
 export const replayManifest: ReplayClipVariant[] = [
   {
-    id: 'echo-01-left', levelId: 'level-01', srcMp4: 'assets/video/echoes/level-01/echo-01-left.mp4',
+    id: 'echo-01-hell', levelId: 'level-01', srcMp4: 'assets/video/echoes/level-01/echo-01-hell.mp4',
     durationMs: 12_000, playbackRate: 0.98, tags: ['left', 'quiet', 'macro'],
     caption: '[Wind. Eine grüne Spitze neigt sich nach links ins Licht. Eine große Form streift den Hintergrund.]',
-    conditions: [{ field: 'primaryDirection', operator: 'eq', value: 'left' }],
+    conditions: [{ field: 'choices.reach', operator: 'eq', value: 'hell' }],
   },
   {
-    id: 'echo-01-right', levelId: 'level-01', srcMp4: 'assets/video/echoes/level-01/echo-01-right.mp4',
+    id: 'echo-01-dunkel', levelId: 'level-01', srcMp4: 'assets/video/echoes/level-01/echo-01-dunkel.mp4',
     durationMs: 12_000, playbackRate: 1.02, tags: ['right', 'restless', 'macro'],
     caption: '[Wind. Eine grüne Spitze richtet sich nach rechts aus. Hektische Bewegung zieht unscharf vorbei.]',
-    conditions: [{ field: 'primaryDirection', operator: 'neq', value: 'left' }],
   },
   {
     id: 'echo-02-near', levelId: 'level-02', srcMp4: 'assets/video/echoes/level-02/echo-02-near.mp4',
