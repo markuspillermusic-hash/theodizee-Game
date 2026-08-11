@@ -72,11 +72,12 @@ const BOTS = {
       return { x: dx / d, y: dy / d, active: true }
     }
     if (s.phase !== 0) return { x: 0, y: 0, active: false }
-    // Verteidigen, sobald einer zupacken will - sonst weiterziehen.
-    const soon = s.rivals.some((r) => !r.fleeing && r.grabAt > 0
-      && r.grabAt - s.elapsedMs < 700)
+    // Nur zuschlagen, wenn wirklich einer in Reichweite ist und der Hieb frei ist.
+    // Ein Bot, der haemmert, faengt sich hier Fehlschlaege ein - genau wie ein Mensch.
+    const inReach = s.rivals.some((r) => !r.fleeing && Math.hypot(r.x - px, r.y - py) <= 180)
+    const ready = s.elapsedMs >= s.swingUntil && s.elapsedMs >= s.whiffUntil
     const dx = 300 - px, dy = 720 - py, d = Math.hypot(dx, dy) || 1
-    return { x: dx / d, y: dy / d, active: true, press: soon }
+    return { x: dx / d, y: dy / d, active: true, press: inReach && ready }
   }`,
   Level04: `(s) => (px, py) => {
     const p = s.embers.filter(e => !e.resolved && e.spawnedAt <= s.elapsedMs)

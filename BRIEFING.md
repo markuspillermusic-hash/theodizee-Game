@@ -172,8 +172,17 @@ Wachstum von dort, die Grasfelder sind die Halme von dort.
 Ein einziger langer Rückweg mit **schwerer** Last (10 Stücke). Drei Junge am Bau, jedes mit eigenem
 Hunger und eigenem Lebensbalken, jedes in Bewegung — unruhiger, je hungriger.
 
-- **Verteidigt wird mit der Leertaste**, nicht mit Stehenbleiben. Ein zulaufender Ring zeigt das
-  Reaktionsfenster; wer nicht drückt, verliert ein Stück.
+- **Die Abwehr ist ein Kampf, kein Knopfdruck** (11.08.). Jeder Gegner braucht zwei bis drei
+  Treffer. Nach jedem Hieb ist man 300 ms gesperrt, ein Schlag ins Leere 520 ms — und er kostet
+  Kraft. **Kraft** macht schneller, weitreichender und gibt mehr Zeit zum Reagieren; sie sinkt durch
+  Hiebe, Fehlschläge und jeden gelungenen Raub, und kehrt zwischen den Wellen nur bis 0,82 zurück.
+  Hämmern bringt deshalb nichts, Zuschlagen im richtigen Moment schon.
+- Wer einmal heran ist, **bleibt dran und hält Schritt**. Vorher setzte sein Zeitring zurück,
+  sobald man weiterging — man konnte den Angreifer schlicht weglaufen lassen.
+- Höchstens drei gleichzeitig. Fünf, die sich alle festbeißen, sind ein Gedränge, kein Kampf.
+- Die Gegner haben eine **Silhouette mit abfallendem Rücken, hoher Schulter und tiefem Kopf** —
+  im Replay als Aasjäger wiedererkennbar, ohne dass das Spiel je „Hyäne" sagt. Dieselbe Regel wie
+  beim Schatten in Abschnitt 1: Benennen nähme die Auflösung vorweg.
 - Die Last macht wirklich langsam (`maxSpeed` 4,2 → 1,1 bei voller Ladung, Konkurrenten 3,9).
   Weglaufen ist unmöglich. Wer ignoriert, ist schneller — weil leichter.
 - Die **Übergabe läuft Stück für Stück**, jedes ans hungrigste Junge, mit Lichtring und Ton. Danach
@@ -182,7 +191,15 @@ Hunger und eigenem Lebensbalken, jedes in Bewegung — unruhiger, je hungriger.
 - Der zweite Gang führt über einen **Zaun mit Scheinwerfern** — die Grenze eines Menschengebiets.
   Hier kommen zum ersten Mal Menschen im Spiel vor.
 
-Botprüfung: „wehrt sich" 20 s / 10 von 10 / 3 abgewehrt · „ignoriert" 17 s / 8 von 10.
+Botprüfung bei echten 60 Hz, drei Spielweisen:
+
+| Spielweise | Level gesamt | Gebracht | Kraft am Ende | Hiebe / Fehlschläge |
+|---|---|---|---|---|
+| gezielt geschlagen | 37 s | 10/10 | 0,79 | 16 / 0 |
+| ignoriert | 32 s | 6/10 | 0,63 | 0 / 0 |
+| gehämmert | über 50 s, kommt kaum heim | 9/10 | 0,31 | 70 / 51 |
+
+Ignorieren ist schnell und teuer, Hämmern hält die Beute und kostet den ganzen Weg, Zielen gewinnt.
 
 ### 4 · Bewahre — der Schützende, „Dazwischen"
 
@@ -392,6 +409,23 @@ Stufen hinweg ist Teil der Aussage.
 **`glow()`** leitet die Zahl der Schichten aus dem Radius ab
 (`clamp(radius / 24, 12, 22)`); mit fester Schichtzahl gab es sichtbare Ringe.
 
+### Klang (`AudioManager`)
+
+Alles wird erzeugt, keine Dateien. Bis 11.08. gab es zwei Sinusdronen, ein Motiv und einen
+Sinus-Piep — das klang nach Messton, nicht nach Ort. Drei Dinge fehlten:
+
+- **Hall.** Eine erzeugte Impulsantwort (abklingendes Rauschen, 2,4 s) auf einem eigenen Bus. Jeder
+  Ton steht damit in einem Raum. Wirkt sofort in allen sechs Abschnitten, ohne dass einer davon
+  angefasst werden musste.
+- **Rauschen** (`noise()`). Ein Sinus kann kein Fell, kein Feuer, keinen Atem. Gefiltertes Rauschen
+  kann alles drei; über Mittenfrequenz und Filterfahrt unterscheiden sich Hieb, Knurren und Wind.
+- **Panorama und Farbe.** `pulse`/`noise`/`thump` nehmen eine Position: Wer von links kommt, ist
+  links zu hören. `setColour(hz)` dämpft die ganze Szene — in Level 3 an die Kraft gekoppelt, so
+  dass Erschöpfung hörbar wird und am Bau wieder aufgeht.
+
+`thump()` ist der Aufschlag: ein Klick, der sofort in die Tiefe fällt, plus ein kurzer
+Rauschanteil. Für alles, was trifft.
+
 ### Befehle
 
 ```bash
@@ -424,7 +458,19 @@ Bildschirme auf, samt DOM-Oberfläche außerhalb des Canvas, optional als Video.
 node scripts/qa.mjs --state Level03 --seconds 70 --every 5
 ```
 
-Voraussetzung: `npm run dev` läuft. Bilder landen in `docs/qa/`.
+**Stufe 3 — Zeitmessung bei festem Takt** (`scripts/measure.mjs`). Für Zeiten ist Stufe 2
+unbrauchbar, und das ist am 11.08. teuer aufgefallen: Headless rendert Chromium in Software und
+schafft nur 12 bis 16 Bilder je Sekunde. Die Szenen begrenzen `frameScale` aus gutem Grund auf 2,4
+— sonst springen Figuren bei einem Ruckler durch Wände —, und genau diese Begrenzung greift dort
+dauernd. Alles bewegt sich mit etwa 60 Prozent der wahren Geschwindigkeit, jede gemessene Strecke
+dauert rund das Anderthalbfache. Wer daraufhin nachjustiert, verschlimmbessert. `measure.mjs`
+taktet Phaser stattdessen mit festen 16,67 ms.
+
+```bash
+node scripts/measure.mjs --state Level03 --seconds 50 --style fair
+```
+
+Voraussetzung für beide: `npm run dev` läuft. Bilder landen in `docs/qa/`.
 
 **Was das gefunden hat, was ohne Bild nie aufgefallen wäre:** Level 4 war in 11 s durch; die
 Stille in Level 6 war unspielbar, weil die Drift die Geschwindigkeit über der Schwelle hielt;
