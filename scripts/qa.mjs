@@ -67,14 +67,16 @@ const BOTS = {
     return { x: dx / d, y: dy / d, active: true }
   }`,
   Level03: `(s) => (px, py) => {
-    if (s.phase > 0) return { x: 0, y: 0, active: false }
-    // Naht ein Konkurrent, stehenbleiben und ihn abwehren. Sonst ziehen.
-    const threat = s.rivals.some((r) => r.state !== 'weicht'
-      && Math.hypot(r.x - px, r.y - py) < 200)
-    if (threat) return { x: 0, y: 0, active: false }
-    const ty = 720
-    const dx = 260 - px, dy = ty - py, d = Math.hypot(dx, dy) || 1
-    return { x: dx / d, y: dy / d, active: true }
+    if (s.phase === 2) {
+      const dx = 1500 - px, dy = 540 - py, d = Math.hypot(dx, dy) || 1
+      return { x: dx / d, y: dy / d, active: true }
+    }
+    if (s.phase !== 0) return { x: 0, y: 0, active: false }
+    // Verteidigen, sobald einer zupacken will - sonst weiterziehen.
+    const soon = s.rivals.some((r) => !r.fleeing && r.grabAt > 0
+      && r.grabAt - s.elapsedMs < 700)
+    const dx = 300 - px, dy = 720 - py, d = Math.hypot(dx, dy) || 1
+    return { x: dx / d, y: dy / d, active: true, press: soon }
   }`,
   Level04: `(s) => (px, py) => {
     const p = s.embers.filter(e => !e.resolved && e.spawnedAt <= s.elapsedMs)
